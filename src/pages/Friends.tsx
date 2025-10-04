@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -153,6 +153,9 @@ export default function Friends() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Send Friend Request</DialogTitle>
+              <DialogDescription>
+                Enter the email address of the person you want to add as a friend.
+              </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSendRequest} className="space-y-4">
               <div className="space-y-2">
@@ -166,7 +169,7 @@ export default function Friends() {
                   required
                 />
                 <p className="text-xs text-muted-foreground">
-                  Enter the email address of the person you want to add as a friend
+                  Enter the email address of the person you want to add as a friend. They must have already signed up for the app.
                 </p>
               </div>
               <div className="flex gap-2">
@@ -347,6 +350,33 @@ export default function Friends() {
           )}
         </TabsContent>
       </Tabs>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>How to Add Friends</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <h4 className="font-medium mb-2">Steps to add friends:</h4>
+            <ol className="list-decimal list-inside space-y-1 text-sm text-muted-foreground">
+              <li>Make sure your friend has signed up for the app</li>
+              <li>Use the exact email address they used to sign up</li>
+              <li>They will receive a friend request notification</li>
+              <li>Once they accept, you can add them to groups</li>
+            </ol>
+          </div>
+          
+          <div>
+            <h4 className="font-medium mb-2">Common error messages:</h4>
+            <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
+              <li><strong>"No user found"</strong> - Friend hasn't signed up yet</li>
+              <li><strong>"Already friends"</strong> - You're already connected</li>
+              <li><strong>"Request pending"</strong> - Waiting for them to accept</li>
+              <li><strong>"Cannot add yourself"</strong> - You can't friend yourself</li>
+            </ul>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -17,6 +17,10 @@ import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 import Groups from "./pages/Groups";
 import Friends from "./pages/Friends";
+import DatabaseTest from "./pages/DatabaseTest";
+import SMTPTest from "./pages/SMTPTest";
+import AuthTest from "./pages/AuthTest";
+import FriendRequestDebugger from "./pages/FriendRequestDebugger";
 import NotFound from "./pages/NotFound";
 import Page from "./components/Page";
 import PasswordResetHandler from "./components/PasswordResetHandler";
@@ -121,6 +125,46 @@ const App = () => (
                   <ProtectedRoute>
                     <Layout>
                       <Friends />
+                    </Layout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/database-test"
+                element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <DatabaseTest />
+                    </Layout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/smtp-test"
+                element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <SMTPTest />
+                    </Layout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/auth-test"
+                element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <AuthTest />
+                    </Layout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/friend-debug"
+                element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <FriendRequestDebugger />
                     </Layout>
                   </ProtectedRoute>
                 }

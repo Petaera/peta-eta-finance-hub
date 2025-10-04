@@ -2,15 +2,15 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Plus, Users, Settings, Trash2, UserPlus, Crown, User } from 'lucide-react';
-import { groupsService, participantsService, friendsService } from '@/services/supabase';
-import { GroupMemberList, MemberCard } from '@/components/ui/member-components';
+import { Plus, Users, Settings, Trash2, UserPlus, Crown, User, ArrowUpCircle, ArrowDownCircle, Receipt } from 'lucide-react';
+import { groupsService, participantsService, friendsService, transactionsService, resolvePayer } from '@/services/supabase';
+import { GroupMemberList, MemberCard, PayerDisplay } from '@/components/ui/member-components';
 import type { CategoryGroup, GroupMember, Participant, Friend } from '@/services/supabase';
 
 export default function Groups() {
@@ -19,6 +19,7 @@ export default function Groups() {
   const [groupMembers, setGroupMembers] = useState<Record<string, GroupMember[]>>({});
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [friends, setFriends] = useState<Friend[]>([]);
+  const [groupTransactions, setGroupTransactions] = useState<Record<string, any[]>>({});
   const [loading, setLoading] = useState(true);
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   
@@ -46,19 +47,28 @@ export default function Groups() {
       const userGroups = await groupsService.getUserGroups(user.id);
       setGroups(userGroups);
 
-      // Fetch members for each group
-      const membersData: Record<string, GroupMember[]> = {};
-      for (const group of userGroups) {
-        const members = await groupsService.getGroupMembers(group.id);
-        membersData[group.id] = members;
-      }
-      setGroupMembers(membersData);
-
       // Fetch participants and friends for adding members
       const [participantsData, friendsData] = await Promise.all([
         participantsService.getAllParticipants(),
         friendsService.getFriends(user.id)
       ]);
+
+      // Fetch members and transactions for each group
+      const membersData: Record<string, GroupMember[]> = {};
+      const transactionsData: Record<string, any[]> = {};
+      for (const group of userGroups) {
+        const members = await groupsService.getGroupMembers(group.id);
+        membersData[group.id] = members;
+        
+        // Get group participants for this group
+        const groupParticipants = participantsData.filter(p => p.group_id === group.id);
+        
+        // Fetch transactions with payer information
+        const transactions = await transactionsService.getGroupTransactionsWithPayer(group.id, groupParticipants, friendsData, user.id);
+        transactionsData[group.id] = transactions;
+      }
+      setGroupMembers(membersData);
+      setGroupTransactions(transactionsData);
       
       setParticipants(participantsData);
       setFriends(friendsData);
@@ -82,6 +92,7 @@ export default function Groups() {
       const newGroup = await groupsService.createGroup(user!.id, groupFormData.name.trim());
       setGroups(prev => [newGroup, ...prev]);
       setGroupMembers(prev => ({ ...prev, [newGroup.id]: [] }));
+      setGroupTransactions(prev => ({ ...prev, [newGroup.id]: [] }));
       setGroupFormData({ name: '' });
       setShowCreateGroupForm(false);
       toast.success('Group created successfully');
@@ -159,8 +170,11 @@ export default function Groups() {
       await groupsService.deleteGroup(groupId);
       setGroups(prev => prev.filter(g => g.id !== groupId));
       const newGroupMembers = { ...groupMembers };
+      const newGroupTransactions = { ...groupTransactions };
       delete newGroupMembers[groupId];
+      delete newGroupTransactions[groupId];
       setGroupMembers(newGroupMembers);
+      setGroupTransactions(newGroupTransactions);
       toast.success('Group deleted successfully');
     } catch (error) {
       console.error('Error deleting group:', error);
@@ -200,6 +214,9 @@ export default function Groups() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Create New Group</DialogTitle>
+              <DialogDescription>
+                Create a new group to organize your expenses and add members.
+              </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleCreateGroup} className="space-y-4">
               <div className="space-y-2">
@@ -272,6 +289,9 @@ export default function Groups() {
                           <DialogContent>
                             <DialogHeader>
                               <DialogTitle>Add Member to {group.name}</DialogTitle>
+                              <DialogDescription>
+                                Add a friend or participant to this group.
+                              </DialogDescription>
                             </DialogHeader>
                             <form onSubmit={handleAddMember} className="space-y-4">
                               <div className="space-y-2">
@@ -369,11 +389,76 @@ export default function Groups() {
                     )}
                   </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-4">
                   <GroupMemberList
                     members={members}
                     participants={groupParticipants}
                   />
+                  
+                  {/* Recent Transactions */}
+                  <div className="border-t pt-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Receipt className="h-4 w-4 text-muted-foreground" />
+                      <h4 className="text-sm font-medium text-muted-foreground">Recent Transactions</h4>
+                    </div>
+                    
+                    {groupTransactions[group.id]?.length > 0 ? (
+                      <div className="space-y-2">
+                        {groupTransactions[group.id].slice(0, 3).map((transaction) => (
+                          <div key={transaction.id} className="flex items-center justify-between p-2 bg-muted/30 rounded-lg">
+                            <div className="flex items-center gap-2">
+                              {transaction.type === 'income' ? (
+                                <ArrowUpCircle className="h-4 w-4 text-green-600" />
+                              ) : (
+                                <ArrowDownCircle className="h-4 w-4 text-red-600" />
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate">
+                                  {transaction.categories?.name || 'Uncategorized'}
+                                </p>
+                                <div className="flex items-center gap-2">
+                                  <p className="text-xs text-muted-foreground truncate">
+                                    {transaction.note || 'No description'}
+                                  </p>
+                                  {transaction.payer_info && (
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-xs text-muted-foreground">•</span>
+                                      <PayerDisplay 
+                                        payerId={transaction.paid_by}
+                                        payerInfo={transaction.payer_info}
+                                        size="xs"
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className={`text-sm font-medium ${
+                                transaction.type === 'income' ? 'text-green-600' : 'text-red-600'
+                              }`}>
+                                {transaction.type === 'income' ? '+' : '-'}${transaction.amount.toFixed(2)}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {new Date(transaction.transaction_date).toLocaleDateString()}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                        {groupTransactions[group.id].length > 3 && (
+                          <p className="text-xs text-muted-foreground text-center">
+                            +{groupTransactions[group.id].length - 3} more transactions
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-center py-4 text-muted-foreground">
+                        <Receipt className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                        <p className="text-sm">No transactions yet</p>
+                        <p className="text-xs">Add expenses to this group to see them here</p>
+                      </div>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             );

@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { Plus, Pencil, Trash2, ArrowUpCircle, ArrowDownCircle, Filter, Calendar, Search, Users } from 'lucide-react';
-import { groupsService, friendsService, resolvePayer } from '@/services/supabase';
+import { groupsService, friendsService, resolvePayer, getOrCreateProfile } from '@/services/supabase';
 import { PayerDisplay, GroupMemberList } from '@/components/ui/member-components';
 import type { GroupMember, Friend } from '@/services/supabase';
 
@@ -218,13 +218,18 @@ export default function Transactions() {
 
   const fetchTransactions = async () => {
     try {
+      // Get user's groups first
+      const userGroups = await groupsService.getUserGroups(user!.id);
+      const groupIds = userGroups.map(group => group.id);
+      
+      // Fetch transactions where user is either the creator OR it's a group transaction
       const { data, error } = await supabase
         .from('transactions')
         .select(`
           *,
           categories(id, name, type)
         `)
-        .eq('user_id', user!.id)
+        .or(`user_id.eq.${user!.id}${groupIds.length > 0 ? `,catogory_group_id.in.(${groupIds.join(',')})` : ''}`)
         .order('transaction_date', { ascending: false });
 
       if (error) {
@@ -303,25 +308,18 @@ export default function Transactions() {
 
   const fetchUserProfile = async () => {
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, default_group_id, default_category_id')
-        .eq('id', user!.id)
-        .single();
+      const profile = await getOrCreateProfile(user!.id);
 
-      if (error) {
-        console.error('Error fetching user profile:', error);
-        return;
-      }
-
-      setUserProfile(data);
-      // Update form data with defaults if available and form is reset
-      if ((data?.default_group_id || data?.default_category_id) && !editingId && !isDialogOpen) {
-        setFormData(prev => ({
-          ...prev,
-          category_group_id: data.default_group_id || 'none',
-          category_id: data.default_category_id || 'none'
-        }));
+      if (profile) {
+        setUserProfile(profile);
+        // Update form data with defaults if available and form is reset
+        if ((profile?.default_group_id || profile?.default_category_id) && !editingId && !isDialogOpen) {
+          setFormData(prev => ({
+            ...prev,
+            category_group_id: profile.default_group_id || 'none',
+            category_id: profile.default_category_id || 'none'
+          }));
+        }
       }
     } catch (err) {
       console.error('Unexpected error:' , err);
