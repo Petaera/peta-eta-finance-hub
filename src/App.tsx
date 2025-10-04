@@ -16,6 +16,8 @@ import Reminders from "./pages/Reminders";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
+import Page from "./components/Page";
+import PasswordResetHandler from "./components/PasswordResetHandler";
 
 const queryClient = new QueryClient();
 
@@ -30,6 +32,7 @@ const App = () => (
             <Routes>
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/auth" element={<Auth />} />
+              <Route path="/auth/reset-password" element={<PasswordResetHandler />} />
               <Route
                 path="/dashboard"
                 element={
@@ -96,6 +99,16 @@ const App = () => (
                   <ProtectedRoute>
                     <Layout>
                       <Settings />
+                    </Layout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/todos"
+                element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <Page />
                     </Layout>
                   </ProtectedRoute>
                 }

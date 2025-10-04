@@ -15,10 +15,11 @@ interface Transaction {
   id: string;
   type: 'income' | 'expense';
   amount: number;
-  notes: string | null;
-  date: string;
+  note: string | null;
+  transaction_date: string;
   category_id: string | null;
-  categories?: { name: string; color: string };
+  created_at: string;
+  categories?: { name: string };
 }
 
 export default function Transactions() {
@@ -30,9 +31,9 @@ export default function Transactions() {
   const [formData, setFormData] = useState({
     type: 'expense' as 'income' | 'expense',
     amount: '',
-    notes: '',
-    date: new Date().toISOString().split('T')[0],
-    category_id: '',
+    note: '',
+    transaction_date: new Date().toISOString().split('T')[0],
+    category_id: 'none',
   });
 
   useEffect(() => {
@@ -42,69 +43,112 @@ export default function Transactions() {
   }, [user]);
 
   const fetchTransactions = async () => {
-    const { data } = await supabase
-      .from('transactions')
-      .select('*, categories(name, color)')
-      .eq('user_id', user!.id)
-      .order('date', { ascending: false });
+    try {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('*, categories(id, name)')
+        .eq('user_id', user!.id)
+        .order('transaction_date', { ascending: false });
 
-    if (data) setTransactions(data);
+      if (error) {
+        console.error('Error fetching transactions:', error);
+        toast.error('Failed to fetch transactions');
+        return;
+      }
+
+      setTransactions(data || []);
+    } catch (err) {
+      console.error('Unexpected error:', err);
+      toast.error('Unexpected error occurred');
+    }
   };
 
   const fetchCategories = async () => {
-    const { data } = await supabase
-      .from('categories')
-      .select('*')
-      .eq('user_id', user!.id);
+    try {
+      const { data, error } = await supabase
+        .from('categories')
+        .select('id, name, type')
+        .eq('user_id', user!.id);
 
-    if (data) setCategories(data);
+      if (error) {
+        console.error('Error fetching categories:', error);
+        toast.error('Failed to fetch categories');
+        return;
+      }
+
+      setCategories(data || []);
+    } catch (err) {
+      console.error('Unexpected error:', err);
+      toast.error('Unexpected error occurred');
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    const amount = parseFloat(formData.amount);
+    if (!amount || amount <= 0) {
+      toast.error('Please enter a valid amount');
+      return;
+    }
+
     const payload = {
       user_id: user!.id,
       type: formData.type,
-      amount: parseFloat(formData.amount),
-      notes: formData.notes || null,
-      date: formData.date,
-      category_id: formData.category_id || null,
+      amount: amount,
+      note: formData.note || null,
+      transaction_date: formData.transaction_date,
+      category_id: formData.category_id === 'none' ? null : formData.category_id,
     };
 
-    if (editingId) {
-      const { error } = await supabase
-        .from('transactions')
-        .update(payload)
-        .eq('id', editingId);
+    try {
+      if (editingId) {
+        const { error } = await supabase
+          .from('transactions')
+          .update(payload)
+          .eq('id', editingId);
 
-      if (error) {
-        toast.error('Failed to update transaction');
+        if (error) {
+          console.error('Update error:', error);
+          toast.error('Failed to update transaction');
+          return;
+        }
+        toast.success('Transaction updated successfully');
       } else {
-        toast.success('Transaction updated');
-      }
-    } else {
-      const { error } = await supabase.from('transactions').insert(payload);
+        const { error } = await supabase.from('transactions').insert(payload);
 
-      if (error) {
-        toast.error('Failed to create transaction');
-      } else {
-        toast.success('Transaction created');
+        if (error) {
+          console.error('Insert error:', error);
+          toast.error('Failed to create transaction');
+          return;
+        }
+        toast.success('Transaction created successfully');
       }
+
+      await fetchTransactions();
+      resetForm();
+    } catch (err) {
+      console.error('Submit error:', err);
+      toast.error('An error occurred while saving transaction');
     }
-
-    fetchTransactions();
-    resetForm();
   };
 
   const handleDelete = async (id: string) => {
-    const { error } = await supabase.from('transactions').delete().eq('id', id);
+    if (!confirm('Are you sure you want to delete this transaction?')) return;
+    
+    try {
+      const { error } = await supabase.from('transactions').delete().eq('id', id);
 
-    if (error) {
-      toast.error('Failed to delete transaction');
-    } else {
-      toast.success('Transaction deleted');
-      fetchTransactions();
+      if (error) {
+        console.error('Delete error:', error);
+        toast.error('Failed to delete transaction');
+        return;
+      }
+      toast.success('Transaction deleted successfully');
+      await fetchTransactions();
+    } catch (err) {
+      console.error('Delete error:', err);
+      toast.error('An error occurred while deleting transaction');
     }
   };
 
@@ -113,9 +157,9 @@ export default function Transactions() {
     setFormData({
       type: transaction.type,
       amount: transaction.amount.toString(),
-      notes: transaction.notes || '',
-      date: transaction.date,
-      category_id: transaction.category_id || '',
+      note: transaction.note || '',
+      transaction_date: transaction.transaction_date,
+      category_id: transaction.category_id || 'none',
     });
     setIsDialogOpen(true);
   };
@@ -124,9 +168,9 @@ export default function Transactions() {
     setFormData({
       type: 'expense',
       amount: '',
-      notes: '',
-      date: new Date().toISOString().split('T')[0],
-      category_id: '',
+      note: '',
+      transaction_date: new Date().toISOString().split('T')[0],
+      category_id: 'none',
     });
     setEditingId(null);
     setIsDialogOpen(false);
@@ -155,12 +199,12 @@ export default function Transactions() {
                 <Label>Type</Label>
                 <Select
                   value={formData.type}
-                  onValueChange={(value: 'income' | 'expense') =>
-                    setFormData({ ...formData, type: value })
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, type: value as 'income' | 'expense' })
                   }
                 >
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="Select type" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="income">Income</SelectItem>
@@ -170,12 +214,14 @@ export default function Transactions() {
               </div>
 
               <div className="space-y-2">
-                <Label>Amount</Label>
+                <Label>Amount (₹)</Label>
                 <Input
                   type="number"
                   step="0.01"
+                  min="0"
                   value={formData.amount}
                   onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                  placeholder="Enter amount"
                   required
                 />
               </div>
@@ -183,13 +229,14 @@ export default function Transactions() {
               <div className="space-y-2">
                 <Label>Category</Label>
                 <Select
-                  value={formData.category_id}
+                  value={formData.category_id || "none"}
                   onValueChange={(value) => setFormData({ ...formData, category_id: value })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select category" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="none">No Category</SelectItem>
                     {categories.map((cat) => (
                       <SelectItem key={cat.id} value={cat.id}>
                         {cat.name}
@@ -203,18 +250,18 @@ export default function Transactions() {
                 <Label>Date</Label>
                 <Input
                   type="date"
-                  value={formData.date}
-                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                  value={formData.transaction_date}
+                  onChange={(e) => setFormData({ ...formData, transaction_date: e.target.value })}
                   required
                 />
               </div>
 
               <div className="space-y-2">
-                <Label>Notes</Label>
+                <Label>Note</Label>
                 <Textarea
-                  value={formData.notes}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  placeholder="Optional notes"
+                  value={formData.note}
+                  onChange={(e) => setFormData({ ...formData, note: e.target.value })}
+                  placeholder="Optional note"
                 />
               </div>
 
@@ -253,10 +300,10 @@ export default function Transactions() {
                       {transaction.categories?.name || 'Uncategorized'}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      {new Date(transaction.date).toLocaleDateString()}
+                      {new Date(transaction.transaction_date).toLocaleDateString()}
                     </p>
-                    {transaction.notes && (
-                      <p className="text-sm text-muted-foreground">{transaction.notes}</p>
+                    {transaction.note && (
+                      <p className="text-sm text-muted-foreground">{transaction.note}</p>
                     )}
                   </div>
                 </div>
@@ -266,7 +313,7 @@ export default function Transactions() {
                       transaction.type === 'income' ? 'text-success' : 'text-destructive'
                     }`}
                   >
-                    {transaction.type === 'income' ? '+' : '-'}${transaction.amount.toFixed(2)}
+                    {transaction.type === 'income' ? '+' : '-'}₹{transaction.amount.toFixed(2)}
                   </span>
                   <div className="flex gap-1">
                     <Button
