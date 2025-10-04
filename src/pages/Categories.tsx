@@ -596,9 +596,9 @@ export default function Categories() {
           {/* Category Section Description */}
           <div className="mt-8 p-4 bg-muted/50 rounded-lg border">
             <p className="text-sm text-muted-foreground">
-              <strong>Categories:</strong> Create and manage income & expense categories to organize your transactions. 
-              Categories can be grouped under Personal, Business, or other organizational groups for better structure 
-              and reporting. Each category helps you track where your money is coming from and going to.
+              <strong>Categories:</strong> Create specific transaction types like Food, Water, Rent, Salary, etc. 
+              These are the actual items you spend money on or earn money from. Categories help you track exactly 
+              what you're buying and organize your financial habits for better budgeting and analysis.
             </p>
           </div>
         </TabsContent>
@@ -698,9 +698,9 @@ export default function Categories() {
           {/* Groups Section Description */}
           <div className="mt-8 p-4 bg-muted/50 rounded-lg border">
             <p className="text-sm text-muted-foreground">
-              <strong>Category Groups:</strong> Organize your categories into groups like Personal, Business, Savings, 
-              etc. Groups help you separate different aspects of your finances and make it easier to analyze 
-              spending patterns. Assign categories to groups for better organization and cleaner financial reporting.
+              <strong>Category Groups:</strong> Create organizational groups like Business, Personal, Home, Family, etc. 
+              These groups help you separate different aspects of your financial life and organize your categories 
+              for cleaner reporting and better budget management across different areas of your life.
             </p>
           </div>
         </TabsContent>
@@ -847,10 +847,9 @@ export default function Categories() {
           {/* Participants Section Description */}
           <div className="mt-8 p-4 bg-muted/50 rounded-lg border">
             <p className="text-sm text-muted-foreground">
-              <strong>Participants:</strong> Add family members, business partners, or team members to track who 
-              pays for shared expenses. When creating transactions, you can assign them to specific participants 
-              to divide bills, track shared budgets, and understand financial responsibilities across your 
-              organization or household.
+              <strong>Participants:</strong> Add family members, business partners, or team members who can pay for 
+              expenses. When creating transactions, assign them to specific participants to track who paid for what, 
+              divide shared bills, and understand financial responsibilities across your household or organization.
             </p>
           </div>
         </TabsContent>

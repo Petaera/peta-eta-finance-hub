@@ -15,6 +15,8 @@ import Budgets from "./pages/Budgets";
 import Reminders from "./pages/Reminders";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
+import Groups from "./pages/Groups";
+import Friends from "./pages/Friends";
 import NotFound from "./pages/NotFound";
 import Page from "./components/Page";
 import PasswordResetHandler from "./components/PasswordResetHandler";
@@ -99,6 +101,26 @@ const App = () => (
                   <ProtectedRoute>
                     <Layout>
                       <Settings />
+                    </Layout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/groups"
+                element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <Groups />
+                    </Layout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/friends"
+                element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <Friends />
                     </Layout>
                   </ProtectedRoute>
                 }

@@ -9,7 +9,10 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
+import { Plus, Pencil, Trash2, ArrowUpCircle, ArrowDownCircle, Filter, Calendar, Search, Users } from 'lucide-react';
+import { groupsService, friendsService, resolvePayer } from '@/services/supabase';
+import { PayerDisplay, GroupMemberList } from '@/components/ui/member-components';
+import type { GroupMember, Friend } from '@/services/supabase';
 
 interface Transaction {
   id: string;
@@ -53,8 +56,24 @@ export default function Transactions() {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [categoryGroups, setCategoryGroups] = useState<CategoryGroup[]>([]);
   const [userProfile, setUserProfile] = useState<Profile | null>(null);
+  const [groupMembers, setGroupMembers] = useState<Record<string, GroupMember[]>>({});
+  const [friends, setFriends] = useState<Friend[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  
+  // Filter states
+  const [showFilters, setShowFilters] = useState(false);
+  const [selectedFilters, setSelectedFilters] = useState({
+    dateFilter: 'all',
+    dateRange: {
+      start: '',
+      end: ''
+    },
+    categoryFilter: 'all',
+    groupFilter: 'all',
+    typeFilter: 'all',
+    searchTerm: ''
+  });
   const [formData, setFormData] = useState({
     type: 'expense' as 'income' | 'expense',
     amount: '',
@@ -72,6 +91,8 @@ export default function Transactions() {
     fetchParticipants(); 
     fetchCategoryGroups();
     fetchUserProfile();
+    fetchGroupMembers();
+    fetchFriends();
   }, [user]);
 
   // Reset paid_by when category group changes
@@ -88,6 +109,112 @@ export default function Transactions() {
       }
     }
   }, [formData.category_group_id, participants]);
+
+  // Calculate date range based on filter
+  const getDateRange = (filter: string) => {
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const last7Days = new Date(today);
+    last7Days.setDate(last7Days.getDate() - 7);
+    const last30Days = new Date(today);
+    last30Days.setDate(last30Days.getDate() - 30);
+
+    switch (filter) {
+      case 'today':
+        return {
+          start: today.toISOString().split('T')[0],
+          end: today.toISOString().split('T')[0]
+        };
+      case 'yesterday':
+        return {
+          start: yesterday.toISOString().split('T')[0],
+          end: yesterday.toISOString().split('T')[0]
+        };
+      case 'last7days':
+        return {
+          start: last7Days.toISOString().split('T')[0],
+          end: today.toISOString().split('T')[0]
+        };
+      case 'last30days':
+        return {
+          start: last30Days.toISOString().split('T')[0],
+          end: today.toISOString().split('T')[0]
+        };
+      default:
+        return { start: '', end: '' };
+    }
+  };
+
+  // Filter transactions based on selected filters
+  const getFilteredTransactions = () => {
+    let filtered = [...transactions];
+
+    // Date filter
+    if (selectedFilters.dateFilter !== 'all') {
+      if (selectedFilters.dateFilter === 'custom') {
+        if (selectedFilters.dateRange.start && selectedFilters.dateRange.end) {
+          filtered = filtered.filter(transaction => {
+            const transactionDate = transaction.transaction_date;
+            return transactionDate >= selectedFilters.dateRange.start && 
+                   transactionDate <= selectedFilters.dateRange.end;
+          });
+        }
+      } else {
+        const dateRange = getDateRange(selectedFilters.dateFilter);
+        filtered = filtered.filter(transaction => {
+          const transactionDate = transaction.transaction_date;
+          return transactionDate >= dateRange.start && transactionDate <= dateRange.end;
+        });
+      }
+    }
+
+    // Category filter
+    if (selectedFilters.categoryFilter !== 'all') {
+      filtered = filtered.filter(transaction => 
+        transaction.category_id === selectedFilters.categoryFilter
+      );
+    }
+
+    // Group filter
+    if (selectedFilters.groupFilter !== 'all') {
+      filtered = filtered.filter(transaction => 
+        transaction.catogory_group_id === selectedFilters.groupFilter
+      );
+    }
+
+    // Type filter
+    if (selectedFilters.typeFilter !== 'all') {
+      filtered = filtered.filter(transaction => 
+        transaction.type === selectedFilters.typeFilter
+      );
+    }
+
+
+    // Search term filter
+    if (selectedFilters.searchTerm.trim()) {
+      const searchLower = selectedFilters.searchTerm.toLowerCase();
+      filtered = filtered.filter(transaction => 
+        transaction.note?.toLowerCase().includes(searchLower) ||
+        transaction.categories?.name.toLowerCase().includes(searchLower) ||
+        transaction.amount.toString().includes(searchLower)
+      );
+    }
+
+    return filtered;
+  };
+
+  // Clear all filters
+  const clearFilters = () => {
+    setSelectedFilters({
+      dateFilter: 'all',
+      dateRange: { start: '', end: '' },
+      categoryFilter: 'all',
+      groupFilter: 'all',
+      typeFilter: 'all',
+      searchTerm: ''
+    });
+  };
 
   const fetchTransactions = async () => {
     try {
@@ -198,6 +325,33 @@ export default function Transactions() {
       }
     } catch (err) {
       console.error('Unexpected error:' , err);
+    }
+  };
+
+  const fetchGroupMembers = async () => {
+    try {
+      const userGroups = await groupsService.getUserGroups(user!.id);
+      const membersData: Record<string, GroupMember[]> = {};
+      
+      for (const group of userGroups) {
+        const members = await groupsService.getGroupMembers(group.id);
+        membersData[group.id] = members;
+      }
+      
+      setGroupMembers(membersData);
+    } catch (error) {
+      console.error('Error fetching group members:', error);
+      toast.error('Failed to fetch group members');
+    }
+  };
+
+  const fetchFriends = async () => {
+    try {
+      const friendsData = await friendsService.getFriends(user!.id);
+      setFriends(friendsData);
+    } catch (error) {
+      console.error('Error fetching friends:', error);
+      toast.error('Failed to fetch friends');
     }
   };
 
@@ -406,10 +560,28 @@ export default function Transactions() {
                     onValueChange={(value) => setFormData({ ...formData, paid_by: value })}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select participant" />
+                      <SelectValue placeholder="Select payer" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="user">Myself (Default)</SelectItem>
+                      
+                      {/* Group Members (Real Users) */}
+                      {formData.category_group_id && formData.category_group_id !== 'none' && 
+                        groupMembers[formData.category_group_id]?.map((member) => (
+                          <SelectItem key={member.user_id} value={member.user_id}>
+                            {member.user_profile?.full_name || member.user_profile?.email} (Group Member)
+                          </SelectItem>
+                        ))
+                      }
+                      
+                      {/* Friends */}
+                      {friends.map((friend) => (
+                        <SelectItem key={friend.friend_profile?.id} value={friend.friend_profile?.id || ''}>
+                          {friend.friend_profile?.full_name || friend.friend_profile?.email} (Friend)
+                        </SelectItem>
+                      ))}
+                      
+                      {/* Participants (Dummy Users) */}
                       {participants
                         .filter(participant => 
                           !formData.category_group_id || 
@@ -418,7 +590,7 @@ export default function Transactions() {
                         )
                         .map((participant) => (
                           <SelectItem key={participant.id} value={participant.id}>
-                            {participant.name}
+                            {participant.name} (Participant)
                           </SelectItem>
                         ))}
                     </SelectContent>
@@ -426,7 +598,7 @@ export default function Transactions() {
                   <p className="text-xs text-muted-foreground">
                     Leave as "Myself" unless someone else paid for this transaction
                     {formData.category_group_id && formData.category_group_id !== 'none' && 
-                      `. Showing participants from ${categoryGroups.find(g => g.id === formData.category_group_id)?.name || 'selected'} group.`
+                      `. Showing members from ${categoryGroups.find(g => g.id === formData.category_group_id)?.name || 'selected'} group.`
                     }
                   </p>
                 </div>
@@ -463,15 +635,206 @@ export default function Transactions() {
         </Dialog>
       </div>
 
+      {/* Filter Section */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Filter className="h-5 w-5" />
+              Filters
+            </CardTitle>
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setShowFilters(!showFilters)}
+              >
+                {showFilters ? 'Hide Filters' : 'Show Filters'}
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={clearFilters}
+              >
+                Clear All
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        
+        {showFilters && (
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {/* Search */}
+              <div className="space-y-2">
+                <Label>Search</Label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    value={selectedFilters.searchTerm}
+                    onChange={(e) => setSelectedFilters({ ...selectedFilters, searchTerm: e.target.value })}
+                    placeholder="Search transactions..."
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+
+              {/* Date Filter */}
+              <div className="space-y-2">
+                <Label>Date Range</Label>
+                <Select
+                  value={selectedFilters.dateFilter}
+                  onValueChange={(value) => setSelectedFilters({ ...selectedFilters, dateFilter: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select date range" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Time</SelectItem>
+                    <SelectItem value="today">Today</SelectItem>
+                    <SelectItem value="yesterday">Yesterday</SelectItem>
+                    <SelectItem value="last7days">Last 7 Days</SelectItem>
+                    <SelectItem value="last30days">Last 30 Days</SelectItem>
+                    <SelectItem value="custom">Custom Range</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Custom Date Range */}
+              {selectedFilters.dateFilter === 'custom' && (
+                <>
+                  <div className="space-y-2">
+                    <Label>Start Date</Label>
+                    <Input
+                      type="date"
+                      value={selectedFilters.dateRange.start}
+                      onChange={(e) => setSelectedFilters({ 
+                        ...selectedFilters, 
+                        dateRange: { ...selectedFilters.dateRange, start: e.target.value }
+                      })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>End Date</Label>
+                    <Input
+                      type="date"
+                      value={selectedFilters.dateRange.end}
+                      onChange={(e) => setSelectedFilters({ 
+                        ...selectedFilters, 
+                        dateRange: { ...selectedFilters.dateRange, end: e.target.value }
+                      })}
+                    />
+                  </div>
+                </>
+              )}
+
+              {/* Type Filter */}
+              <div className="space-y-2">
+                <Label>Transaction Type</Label>
+                <Select
+                  value={selectedFilters.typeFilter}
+                  onValueChange={(value) => setSelectedFilters({ ...selectedFilters, typeFilter: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="All types" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Types</SelectItem>
+                    <SelectItem value="income">Income</SelectItem>
+                    <SelectItem value="expense">Expense</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Category Group Filter */}
+              <div className="space-y-2">
+                <Label>Category Group</Label>
+                <Select
+                  value={selectedFilters.groupFilter}
+                  onValueChange={(value) => setSelectedFilters({ ...selectedFilters, groupFilter: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="All groups" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Groups</SelectItem>
+                    {categoryGroups.map((group) => (
+                      <SelectItem key={group.id} value={group.id}>
+                    {group.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Category Filter */}
+              <div className="space-y-2">
+                <Label>Category</Label>
+                <Select
+                  value={selectedFilters.categoryFilter}
+                  onValueChange={(value) => setSelectedFilters({ ...selectedFilters, categoryFilter: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="All categories" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Categories</SelectItem>
+                    {categories.map((category) => (
+                      <SelectItem key={category.id} value={category.id}>
+                        {category.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+            </div>
+          </CardContent>
+        )}
+      </Card>
+
+      {/* Group Members Section */}
+      {categoryGroups.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Group Members
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {categoryGroups.map((group) => {
+                const members = groupMembers[group.id] || [];
+                const groupParticipants = participants.filter(p => p.group_id === group.id);
+                
+                return (
+                  <div key={group.id} className="space-y-2">
+                    <h4 className="font-medium text-sm">{group.name}</h4>
+                    <GroupMemberList
+                      members={members}
+                      participants={groupParticipants}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid gap-4">
-        {transactions.length === 0 ? (
+        {getFilteredTransactions().length === 0 ? (
           <Card>
             <CardContent className="flex h-40 items-center justify-center text-muted-foreground">
-              No transactions yet. Add your first transaction above.
+              {transactions.length === 0 
+                ? "No transactions yet. Add your first transaction above."
+                : "No transactions match your filters. Try adjusting your search criteria."
+              }
             </CardContent>
           </Card>
         ) : (
-          transactions.map((transaction) => (
+          getFilteredTransactions().map((transaction) => (
             <Card key={transaction.id}>
               <CardContent className="flex items-center justify-between p-4">
                 <div className="flex items-center gap-3">
@@ -493,14 +856,16 @@ export default function Transactions() {
                       })()}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      {new Date(transaction.transaction_date).toLocaleDateString()}
+                      {new Date(transaction.transaction_date).toLocaleDateString('en-GB')}
                     </p>
-                    <p className="text-xs text-blue-600 dark:text-blue-400">
-                      Paid by: {transaction.paid_by === user?.id ? 'Myself' : (() => {
-                        const participant = participants.find(p => p.id === transaction.paid_by);
-                        return participant?.name || 'Unknown Participant';
-                      })()}
-                    </p>
+                    <div className="text-xs text-blue-600 dark:text-blue-400">
+                      <PayerDisplay
+                        paidBy={transaction.paid_by}
+                        userId={user?.id || ''}
+                        participants={participants}
+                        friends={friends}
+                      />
+                    </div>
                     {transaction.note && (
                       <p className="text-sm text-muted-foreground">{transaction.note}</p>
                     )}

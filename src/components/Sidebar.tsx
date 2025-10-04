@@ -12,6 +12,8 @@ import {
   Sun,
   LogOut,
   X,
+  Users,
+  UserPlus,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
@@ -22,6 +24,8 @@ const navItems = [
   { to: '/transactions', icon: Receipt, label: 'Transactions' },
   { to: '/categories', icon: FolderOpen, label: 'Categories' },
   { to: '/budgets', icon: PiggyBank, label: 'Budgets' },
+  { to: '/groups', icon: Users, label: 'Groups' },
+  { to: '/friends', icon: UserPlus, label: 'Friends' },
   { to: '/reminders', icon: Bell, label: 'Reminders' },
   { to: '/reports', icon: BarChart3, label: 'Reports' },
   { to: '/settings', icon: Settings, label: 'Settings' },
