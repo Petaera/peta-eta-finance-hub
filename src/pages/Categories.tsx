@@ -592,6 +592,15 @@ export default function Categories() {
               ))
             )}
           </div>
+          
+          {/* Category Section Description */}
+          <div className="mt-8 p-4 bg-muted/50 rounded-lg border">
+            <p className="text-sm text-muted-foreground">
+              <strong>Categories:</strong> Create and manage income & expense categories to organize your transactions. 
+              Categories can be grouped under Personal, Business, or other organizational groups for better structure 
+              and reporting. Each category helps you track where your money is coming from and going to.
+            </p>
+          </div>
         </TabsContent>
 
         <TabsContent value="groups" className="space-y-4">
@@ -684,6 +693,15 @@ export default function Categories() {
                 ))}
               </div>
             )}
+          </div>
+          
+          {/* Groups Section Description */}
+          <div className="mt-8 p-4 bg-muted/50 rounded-lg border">
+            <p className="text-sm text-muted-foreground">
+              <strong>Category Groups:</strong> Organize your categories into groups like Personal, Business, Savings, 
+              etc. Groups help you separate different aspects of your finances and make it easier to analyze 
+              spending patterns. Assign categories to groups for better organization and cleaner financial reporting.
+            </p>
           </div>
         </TabsContent>
 
@@ -824,6 +842,16 @@ export default function Categories() {
                 ))}
               </div>
             )}
+          </div>
+          
+          {/* Participants Section Description */}
+          <div className="mt-8 p-4 bg-muted/50 rounded-lg border">
+            <p className="text-sm text-muted-foreground">
+              <strong>Participants:</strong> Add family members, business partners, or team members to track who 
+              pays for shared expenses. When creating transactions, you can assign them to specific participants 
+              to divide bills, track shared budgets, and understand financial responsibilities across your 
+              organization or household.
+            </p>
           </div>
         </TabsContent>
       </Tabs>

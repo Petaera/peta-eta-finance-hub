@@ -4,7 +4,7 @@ import { ArrowUpCircle, ArrowDownCircle, TrendingUp, Bell } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
-import Todos from '@/components/Todos';
+// import Todos from '@/components/Todos';
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -183,7 +183,7 @@ export default function Dashboard() {
       </div>
 
       {/* Todos Section */}
-      <Todos />
+      {/* <Todos /> */}
     </div>
   );
 }

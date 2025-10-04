@@ -8,17 +8,14 @@ import {
   Bell,
   BarChart3,
   Settings,
-  Wallet,
   Moon,
   Sun,
   LogOut,
-  Menu,
   X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/components/ThemeProvider';
-import { useState } from 'react';
 
 const navItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -30,24 +27,25 @@ const navItems = [
   { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 
-export function Sidebar() {
+interface SidebarProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const { signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   const sidebarContent = (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-2 px-6 py-5 border-b">
-        <Wallet className="h-6 w-6 text-primary" />
-        <span className="text-xl font-bold">Peta-eta</span>
-      </div>
-
       <nav className="flex-1 space-y-1 px-3 py-4">
         {navItems.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
-            onClick={() => setIsMobileOpen(false)}
+            onClick={() => {
+              onClose();
+            }}
             className={({ isActive }) =>
               cn(
                 'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
@@ -63,7 +61,7 @@ export function Sidebar() {
         ))}
       </nav>
 
-      <div className="space-y-2 border-t p-3">
+      <div className="mt-auto space-y-2 border-t p-3">
         <Button
           variant="ghost"
           size="sm"
@@ -88,34 +86,29 @@ export function Sidebar() {
 
   return (
     <>
-      {/* Mobile menu button */}
-      <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between bg-card border-b px-4 py-3 lg:hidden">
-        <div className="flex items-center gap-2">
-          <Wallet className="h-6 w-6 text-primary" />
-          <span className="text-xl font-bold">Peta-eta</span>
-        </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setIsMobileOpen(!isMobileOpen)}
-        >
-          {isMobileOpen ? <X /> : <Menu />}
-        </Button>
-      </div>
+      {/* Mobile sidebar overlay */}
+      {isOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden" 
+          onClick={onClose}
+        />
+      )}
 
       {/* Mobile sidebar */}
       <div
         className={cn(
-          'fixed inset-0 z-40 bg-background transition-transform duration-300 lg:hidden',
-          isMobileOpen ? 'translate-x-0' : '-translate-x-full'
+          'fixed top-16 left-0 h-[calc(100vh-4rem)] w-64 z-50 bg-background border-r transition-transform duration-300 lg:hidden flex flex-col',
+          isOpen ? 'translate-x-0' : '-translate-x-full'
         )}
-        style={{ top: '57px' }}
       >
         {sidebarContent}
       </div>
 
       {/* Desktop sidebar */}
-      <aside className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col border-r bg-card">
+      <aside className={cn(
+        'fixed inset-y-0 left-0 w-64 flex flex-col border-r bg-card transition-transform duration-300',
+        isOpen ? 'translate-x-0' : '-translate-x-full'
+      )}>
         {sidebarContent}
       </aside>
     </>

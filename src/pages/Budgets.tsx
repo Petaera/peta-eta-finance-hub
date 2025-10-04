@@ -111,8 +111,8 @@ export default function Budgets() {
         .select('amount')
         .eq('user_id', user!.id)
         .eq('type', 'expense')
-        .gte('date', periodStart.toISOString())
-        .lte('date', periodEnd.toISOString());
+        .gte('transaction_date', periodStart.toISOString())
+        .lte('transaction_date', periodEnd.toISOString());
 
       if (categoryId) {
         query = query.eq('category_id', categoryId);

@@ -18,18 +18,13 @@ interface Transaction {
   note: string | null;
   transaction_date: string;
   category_id: string | null;
+  catogory_group_id: string | null; // Note: matches the typo in your schema
   paid_by: string | null;
   created_at: string;
   categories?: { 
     id: string;
     name: string;
     type: string;
-    category_groups?: { name: string } | null;
-  };
-  participants?: { 
-    id: string;
-    name: string;
-    email: string | null;
   };
 }
 
@@ -45,12 +40,19 @@ interface CategoryGroup {
   name: string;
 }
 
+interface Profile {
+  id: string;
+  default_group_id: string | null;
+  default_category_id: string | null;
+}
+
 export default function Transactions() {
   const { user } = useAuth();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [categoryGroups, setCategoryGroups] = useState<CategoryGroup[]>([]);
+  const [userProfile, setUserProfile] = useState<Profile | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
@@ -59,16 +61,33 @@ export default function Transactions() {
     note: '',
     transaction_date: new Date().toISOString().split('T')[0],
     category_id: 'none',
-    paid_by: 'none',
+    category_group_id: 'none',
+    paid_by: 'user',
   });
 
   useEffect(() => {
     if (!user) return;
     fetchTransactions();
     fetchCategories();
-    fetchParticipants();
+    fetchParticipants(); 
     fetchCategoryGroups();
+    fetchUserProfile();
   }, [user]);
+
+  // Reset paid_by when category group changes
+  useEffect(() => {
+    if (formData.category_group_id && formData.paid_by !== 'user') {
+      const availableParticipants = participants.filter(participant => 
+        !formData.category_group_id || 
+        formData.category_group_id === 'none' || 
+        participant.group_id === formData.category_group_id
+      );
+      
+      if (!availableParticipants.find(p => p.id === formData.paid_by)) {
+        setFormData(prev => ({ ...prev, paid_by: 'user' }));
+      }
+    }
+  }, [formData.category_group_id, participants]);
 
   const fetchTransactions = async () => {
     try {
@@ -76,8 +95,7 @@ export default function Transactions() {
         .from('transactions')
         .select(`
           *,
-          categories(id, name, type, category_groups(id, name)),
-          participants(id, name, email)
+          categories(id, name, type)
         `)
         .eq('user_id', user!.id)
         .order('transaction_date', { ascending: false });
@@ -99,12 +117,7 @@ export default function Transactions() {
     try {
       const { data, error } = await supabase
         .from('categories')
-        .select(`
-          id, 
-          name, 
-          type,
-          category_groups(id, name)
-        `)
+        .select('id, name, type')
         .eq('user_id', user!.id);
 
       if (error) {
@@ -161,6 +174,33 @@ export default function Transactions() {
     }
   };
 
+  const fetchUserProfile = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, default_group_id, default_category_id')
+        .eq('id', user!.id)
+        .single();
+
+      if (error) {
+        console.error('Error fetching user profile:', error);
+        return;
+      }
+
+      setUserProfile(data);
+      // Update form data with defaults if available and form is reset
+      if ((data?.default_group_id || data?.default_category_id) && !editingId && !isDialogOpen) {
+        setFormData(prev => ({
+          ...prev,
+          category_group_id: data.default_group_id || 'none',
+          category_id: data.default_category_id || 'none'
+        }));
+      }
+    } catch (err) {
+      console.error('Unexpected error:' , err);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -170,15 +210,22 @@ export default function Transactions() {
       return;
     }
 
-    const payload = {
+    const payload: any = {
       user_id: user!.id,
       type: formData.type,
       amount: amount,
       note: formData.note || null,
       transaction_date: formData.transaction_date,
       category_id: formData.category_id === 'none' ? null : formData.category_id,
-      paid_by: formData.paid_by === 'none' ? null : formData.paid_by,
+      catogory_group_id: formData.category_group_id === 'none' ? null : formData.category_group_id,
     };
+
+    // Set paid_by to user ID for Myself, participant ID for others
+    if (formData.paid_by === 'user') {
+      payload.paid_by = user!.id; // Store actual user ID for "Myself"
+    } else {
+      payload.paid_by = formData.paid_by; // Store participant ID
+    }
 
     try {
       if (editingId) {
@@ -239,7 +286,8 @@ export default function Transactions() {
       note: transaction.note || '',
       transaction_date: transaction.transaction_date,
       category_id: transaction.category_id || 'none',
-      paid_by: transaction.paid_by || 'none',
+      category_group_id: transaction.catogory_group_id || 'none',
+      paid_by: transaction.paid_by === user?.id ? 'user' : transaction.paid_by || 'user',
     });
     setIsDialogOpen(true);
   };
@@ -250,8 +298,9 @@ export default function Transactions() {
       amount: '',
       note: '',
       transaction_date: new Date().toISOString().split('T')[0],
-      category_id: 'none',
-      paid_by: 'none',
+      category_id: userProfile?.default_category_id || 'none',
+      category_group_id: userProfile?.default_group_id || 'none',
+      paid_by: 'user',
     });
     setEditingId(null);
     setIsDialogOpen(false);
@@ -307,18 +356,19 @@ export default function Transactions() {
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols R-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
                 <div className="space-y-2">
-                  <Label>Category Group (Filter)</Label>
+                  <Label>Category Group</Label>
                   <Select
-                    value="all"
-                    onValueChange={() => {}} // We could implement filtering here
+                    value={formData.category_group_id || "none"}
+                    onValueChange={(value) => setFormData({ ...formData, category_group_id: value })}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="All Groups" />
+                      <SelectValue placeholder="Select category group" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Groups</SelectItem>
+                      <SelectItem value="none">No Category Group</SelectItem>
                       {categoryGroups.map((group) => (
                         <SelectItem key={group.id} value={group.id}>
                           {group.name}
@@ -341,7 +391,7 @@ export default function Transactions() {
                       <SelectItem value="none">No Category</SelectItem>
                       {categories.map((cat) => (
                         <SelectItem key={cat.id} value={cat.id}>
-                          {cat.category_groups?.name ? `${cat.name} (${cat.category_groups.name})` : cat.name}
+                          {cat.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -349,25 +399,37 @@ export default function Transactions() {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label>Paid By</Label>
-                <Select
-                  value={formData.paid_by || "none"}
-                  onValueChange={(value) => setFormData({ ...formData, paid_by: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select participant" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Myself (Default)</SelectItem>
-                    {participants.map((participant) => (
-                      <SelectItem key={participant.id} value={participant.id}>
-                        {participant.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                <div className="space-y-2">
+                  <Label>Paid By</Label>
+                  <Select
+                    value={formData.paid_by}
+                    onValueChange={(value) => setFormData({ ...formData, paid_by: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select participant" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="user">Myself (Default)</SelectItem>
+                      {participants
+                        .filter(participant => 
+                          !formData.category_group_id || 
+                          formData.category_group_id === 'none' || 
+                          participant.group_id === formData.category_group_id
+                        )
+                        .map((participant) => (
+                          <SelectItem key={participant.id} value={participant.id}>
+                            {participant.name}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Leave as "Myself" unless someone else paid for this transaction
+                    {formData.category_group_id && formData.category_group_id !== 'none' && 
+                      `. Showing participants from ${categoryGroups.find(g => g.id === formData.category_group_id)?.name || 'selected'} group.`
+                    }
+                  </p>
+                </div>
 
               <div className="space-y-2">
                 <Label>Date</Label>
@@ -419,22 +481,26 @@ export default function Transactions() {
                     <ArrowDownCircle className="h-8 w-8 text-destructive" />
                   )}
                   <div>
-                    <p className="font-medium">
-                      {transaction.categories?.name || 'Uncategorized'}
-                      {transaction.categories?.category_groups?.name && (
-                        <span className="text-xs bg-blue-100 dark:bg-blue-900 px-1 rounded ml-2">
-                          {transaction.categories.category_groups.name}
-                        </span>
-                      )}
+                    <p>
+                      <span className="font-medium">{transaction.categories?.name || 'Uncategorized'}</span>
+                      {transaction.catogory_group_id && (() => {
+                        const categoryGroup = categoryGroups.find(g => g.id === transaction.catogory_group_id);
+                        return categoryGroup && (
+                          <span className="text-xs bg-blue-100 dark:bg-blue-900 px-1 rounded ml-2">
+                            {categoryGroup.name}
+                          </span>
+                        );
+                      })()}
                     </p>
                     <p className="text-sm text-muted-foreground">
                       {new Date(transaction.transaction_date).toLocaleDateString()}
                     </p>
-                    {transaction.participants?.name && (
-                      <p className="text-xs text-blue-600 dark:text-blue-400">
-                        Paid by: {transaction.participants.name}
-                      </p>
-                    )}
+                    <p className="text-xs text-blue-600 dark:text-blue-400">
+                      Paid by: {transaction.paid_by === user?.id ? 'Myself' : (() => {
+                        const participant = participants.find(p => p.id === transaction.paid_by);
+                        return participant?.name || 'Unknown Participant';
+                      })()}
+                    </p>
                     {transaction.note && (
                       <p className="text-sm text-muted-foreground">{transaction.note}</p>
                     )}
