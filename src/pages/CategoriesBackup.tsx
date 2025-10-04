@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, FolderOpen, Layers, X, Users } from 'lucide-react';
+import { Plus, Pencil, Trash2, FolderOpen, Layers, X } from 'lucide-react';
 
 interface CategoryGroup {
   id: string;
@@ -18,14 +18,10 @@ interface CategoryGroup {
 
 interface Participant {
   id: string;
+  group_id: string | null;
   name: string;
   email: string | null;
-  group_id: string | null;
   created_at: string;
-  category_groups?: {
-    id: string;
-    name: string;
-  } | null;
 }
 
 interface Category {
@@ -40,8 +36,7 @@ export default function Categories() {
   const { user } = useAuth();
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoryGroups, setCategoryGroups] = useState<CategoryGroup[]>([]);
-  const [participants, setParticipants] = useState<Participant[]>([]);
-  const [activeTab, setActiveTab] = useState<'categories' | 'groups' | 'participants'>('categories');
+  const [activeTab, setActiveTab] = useState<'categories' | 'groups'>('categories');
   
   // Category form states
   const [showCategoryForm, setShowCategoryForm] = useState(false);
@@ -58,15 +53,15 @@ export default function Categories() {
     name: '',
   });
   
-  // Participant form states
-  const [showParticipantForm, setShowParticipantForm] = useState(false);
-  const [editingParticipant, setEditingParticipant] = useState<string | null>(null);
   const [participantFormData, setParticipantFormData] = useState({
     name: '',
     email: '',
     group_id: 'none',
   });
   
+  const [participants, setParticipants] = useState<Participant[]>([]);
+  const [showParticipantForm, setShowParticipantForm] = useState(false);
+  const [editingParticipant, setEditingParticipant] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
 
@@ -137,11 +132,8 @@ export default function Categories() {
     try {
       const { data, error } = await supabase
         .from('participants')
-        .select(`
-          *,
-          category_groups(id, name)
-        `)
-        .order('created_at', { ascending: false });
+        .select('id, group_id, name, email, created_at')
+        .eq('group_id', categoryGroups?.[0]?.id); // For now, fetch participants for first group
 
       if (error) {
         console.error('Error fetching participants:', error);
@@ -151,8 +143,8 @@ export default function Categories() {
 
       setParticipants(data || []);
     } catch (err) {
-      console.error('Error fetching participants:', err);
-      toast.error('Failed to fetch participants');
+      console.error('Unexpected error:', err);
+      toast.error('Unexpected error occurred');
     }
   };
 
@@ -303,91 +295,6 @@ export default function Categories() {
     setShowCategoryForm(true);
   };
 
-  const handleParticipantSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!participantFormData.name.trim()) {
-      toast.error('Participant name is required');
-      return;
-    }
-    
-    try {
-      setFormLoading(true);
-      
-      const payload = {
-        name: participantFormData.name.trim(),
-        email: participantFormData.email || null,
-        group_id: participantFormData.group_id === 'none' ? null : participantFormData.group_id,
-      };
-
-      if (editingParticipant) {
-        const { error } = await supabase
-          .from('participants')
-          .update(payload)
-          .eq('id', editingParticipant);
-
-        if (error) {
-          console.error('Update error:', error);
-          toast.error('Failed to update participant');
-          return;
-        }
-        toast.success('Participant updated successfully');
-      } else {
-        const { error } = await supabase
-          .from('participants')
-          .insert(payload);
-
-        if (error) {
-          console.error('Insert error:', error);
-          toast.error('Failed to create participant');
-          return;
-        }
-        toast.success('Participant created successfully');
-      }
-
-      await fetchParticipants();
-      resetParticipantForm();
-    } catch (err) {
-      console.error('Participant submit error:', err);
-      toast.error('An error occurred while saving participant');
-    } finally {
-      setFormLoading(false);
-    }
-  };
-  
-  const handleDeleteParticipant = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this participant?')) return;
-    
-    try {
-      const { error } = await supabase
-        .from('participants')
-        .delete()
-        .eq('id', id);
-
-      if (error) {
-        console.error('Delete error:', error);
-        toast.error('Failed to delete participant');
-        return;
-      }
-
-      toast.success('Participant deleted successfully');
-      await fetchParticipants();
-    } catch (err) {
-      console.error('Delete error:', err);
-      toast.error('An error occurred while deleting participant');
-    }
-  };
-
-  const handleEditParticipant = (participant: Participant) => {
-    setEditingParticipant(participant.id);
-    setParticipantFormData({
-      name: participant.name,
-      email: participant.email || '',
-      group_id: participant.group_id || 'none',
-    });
-    setShowParticipantForm(true);
-  };
-
   const resetCategoryForm = () => {
       setCategoryFormData({
         name: '',
@@ -401,16 +308,6 @@ export default function Categories() {
   const resetGroupForm = () => {
     setGroupFormData({ name: '' });
     setShowGroupForm(false);
-  };
-  
-  const resetParticipantForm = () => {
-    setParticipantFormData({
-      name: '',
-      email: '',
-      group_id: 'none',
-    });
-    setEditingParticipant(null);
-    setShowParticipantForm(false);
   };
 
   const groupedCategories = categories.reduce((acc, cat) => {
@@ -440,11 +337,10 @@ export default function Categories() {
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'categories' | 'groups' | 'participants')}>
-        <TabsList className="grid w-full grid-cols-3">
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'categories' | 'groups')}>
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="categories">Categories</TabsTrigger>
           <TabsTrigger value="groups">Groups</TabsTrigger>
-          <TabsTrigger value="participants">Participants</TabsTrigger>
         </TabsList>
 
         <TabsContent value="categories" className="space-y-4">
@@ -675,146 +571,6 @@ export default function Categories() {
                           variant="ghost"
                           size="icon"
                           onClick={() => handleDeleteGroup(group.id)}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="participants" className="space-y-4">
-          {/* Participant Creation Form */}
-          {showParticipantForm && (
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>{editingParticipant ? 'Edit' : 'Add'} Participant</CardTitle>
-                  <Button variant="ghost" size="sm" onClick={resetParticipantForm}>
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleParticipantSubmit} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="participant-name">Name</Label>
-                      <Input
-                        id="participant-name"
-                        value={participantFormData.name}
-                        onChange={(e) => setParticipantFormData({ ...participantFormData, name: e.target.value })}
-                        placeholder="Participant name"
-                        required
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="participant-email">Email (Optional)</Label>
-                      <Input
-                        id="participant-email"
-                        type="email"
-                        value={participantFormData.email}
-                        onChange={(e) => setParticipantFormData({ ...participantFormData, email: e.target.value })}
-                        placeholder="Email address"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="participant-group">Category Group (Optional)</Label>
-                    <Select
-                      value={participantFormData.group_id || "none"}
-                      onValueChange={(value) => setParticipantFormData({ ...participantFormData, group_id: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select group" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">No Group</SelectItem>
-                        {categoryGroups.map((group) => (
-                          <SelectItem key={group.id} value={group.id}>
-                            {group.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="flex gap-2">
-                    <Button type="submit" className="flex-1" disabled={formLoading}>
-                      {formLoading ? 'Saving...' : editingParticipant ? 'Update' : 'Create'} Participant
-                    </Button>
-                    <Button type="button" variant="outline" onClick={resetParticipantForm}>
-                      Cancel
-                    </Button>
-                  </div>
-                </form>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Participants List */}
-          <div className="space-y-4">
-            {!showParticipantForm && (
-              <div className="flex justify-between items-center">
-                <h2 className="text-xl font-semibold">Participants ({participants.length})</h2>
-                <Button onClick={() => setShowParticipantForm(true)}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Participant
-                </Button>
-              </div>
-            )}
-
-            {participants.length === 0 ? (
-              <Card>
-                <CardContent className="flex h-40 items-center justify-center text-muted-foreground">
-                  <div className="text-center">
-                    <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p>No participants yet</p>
-                    <p className="text-sm">Add participants to your organization</p>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {participants.map((participant) => (
-                  <Card key={participant.id}>
-                    <CardContent className="flex items-center justify-between p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-                          <Users className="h-5 w-5" />
-                        </div>
-                        <div className="flex-1">
-                          <span className="font-medium">{participant.name}</span>
-                          <div className="text-xs text-muted-foreground space-y-1">
-                            {participant.email && <div>{participant.email}</div>}
-                            {participant.category_groups && (
-                              <div className="flex items-center gap-1">
-                                <span className="text-xs bg-blue-100 dark:bg-blue-900 px-1 rounded">
-                                  {participant.category_groups.name}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleEditParticipant(participant)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDeleteParticipant(participant.id)}
                         >
                           <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>

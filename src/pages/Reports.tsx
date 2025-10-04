@@ -121,7 +121,7 @@ export default function Reports() {
             <CardTitle className="text-sm font-medium">Total Income</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-success">${totalIncome.toFixed(2)}</div>
+            <div className="text-2xl font-bold text-success">₹{totalIncome.toFixed(2)}</div>
           </CardContent>
         </Card>
 
@@ -130,7 +130,7 @@ export default function Reports() {
             <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-destructive">${totalExpense.toFixed(2)}</div>
+            <div className="text-2xl font-bold text-destructive">₹{totalExpense.toFixed(2)}</div>
           </CardContent>
         </Card>
 
@@ -139,7 +139,7 @@ export default function Reports() {
             <CardTitle className="text-sm font-medium">Net</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${(totalIncome - totalExpense).toFixed(2)}</div>
+            <div className="text-2xl font-bold">₹{(totalIncome - totalExpense).toFixed(2)}</div>
           </CardContent>
         </Card>
       </div>
@@ -182,7 +182,7 @@ export default function Reports() {
                   cx="50%"
                   cy="50%"
                   labelLine={false}
-                  label={(entry) => `${entry.name}: $${entry.value.toFixed(2)}`}
+                  label={(entry) => `${entry.name}: ₹${entry.value.toFixed(2)}`}
                   outerRadius={100}
                   fill="#8884d8"
                   dataKey="value"

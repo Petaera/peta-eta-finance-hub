@@ -18,14 +18,39 @@ interface Transaction {
   note: string | null;
   transaction_date: string;
   category_id: string | null;
+  paid_by: string | null;
   created_at: string;
-  categories?: { name: string };
+  categories?: { 
+    id: string;
+    name: string;
+    type: string;
+    category_groups?: { name: string } | null;
+  };
+  participants?: { 
+    id: string;
+    name: string;
+    email: string | null;
+  };
+}
+
+interface Participant {
+  id: string;
+  name: string;
+  email: string | null;
+  group_id: string | null;
+}
+
+interface CategoryGroup {
+  id: string;
+  name: string;
 }
 
 export default function Transactions() {
   const { user } = useAuth();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
+  const [participants, setParticipants] = useState<Participant[]>([]);
+  const [categoryGroups, setCategoryGroups] = useState<CategoryGroup[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
@@ -34,19 +59,26 @@ export default function Transactions() {
     note: '',
     transaction_date: new Date().toISOString().split('T')[0],
     category_id: 'none',
+    paid_by: 'none',
   });
 
   useEffect(() => {
     if (!user) return;
     fetchTransactions();
     fetchCategories();
+    fetchParticipants();
+    fetchCategoryGroups();
   }, [user]);
 
   const fetchTransactions = async () => {
     try {
       const { data, error } = await supabase
         .from('transactions')
-        .select('*, categories(id, name)')
+        .select(`
+          *,
+          categories(id, name, type, category_groups(id, name)),
+          participants(id, name, email)
+        `)
         .eq('user_id', user!.id)
         .order('transaction_date', { ascending: false });
 
@@ -67,7 +99,12 @@ export default function Transactions() {
     try {
       const { data, error } = await supabase
         .from('categories')
-        .select('id, name, type')
+        .select(`
+          id, 
+          name, 
+          type,
+          category_groups(id, name)
+        `)
         .eq('user_id', user!.id);
 
       if (error) {
@@ -77,6 +114,47 @@ export default function Transactions() {
       }
 
       setCategories(data || []);
+    } catch (err) {
+      console.error('Unexpected error:', err);
+      toast.error('Unexpected error occurred');
+    }
+  };
+
+  const fetchParticipants = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('participants')
+        .select('id, name, email, group_id')
+        .order('name', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching participants:', error);
+        toast.error('Failed to fetch participants');
+        return;
+      }
+
+      setParticipants(data || []);
+    } catch (err) {
+      console.error('Unexpected error:', err);
+      toast.error('Unexpected error occurred');
+    }
+  };
+
+  const fetchCategoryGroups = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('category_groups')
+        .select('id, name')
+        .eq('user_id', user!.id)
+        .order('name', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching category groups:', error);
+        toast.error('Failed to fetch category groups');
+        return;
+      }
+
+      setCategoryGroups(data || []);
     } catch (err) {
       console.error('Unexpected error:', err);
       toast.error('Unexpected error occurred');
@@ -99,6 +177,7 @@ export default function Transactions() {
       note: formData.note || null,
       transaction_date: formData.transaction_date,
       category_id: formData.category_id === 'none' ? null : formData.category_id,
+      paid_by: formData.paid_by === 'none' ? null : formData.paid_by,
     };
 
     try {
@@ -160,6 +239,7 @@ export default function Transactions() {
       note: transaction.note || '',
       transaction_date: transaction.transaction_date,
       category_id: transaction.category_id || 'none',
+      paid_by: transaction.paid_by || 'none',
     });
     setIsDialogOpen(true);
   };
@@ -171,6 +251,7 @@ export default function Transactions() {
       note: '',
       transaction_date: new Date().toISOString().split('T')[0],
       category_id: 'none',
+      paid_by: 'none',
     });
     setEditingId(null);
     setIsDialogOpen(false);
@@ -226,20 +307,62 @@ export default function Transactions() {
                 />
               </div>
 
+              <div className="grid grid-cols-1 md:grid-cols R-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Category Group (Filter)</Label>
+                  <Select
+                    value="all"
+                    onValueChange={() => {}} // We could implement filtering here
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="All Groups" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Groups</SelectItem>
+                      {categoryGroups.map((group) => (
+                        <SelectItem key={group.id} value={group.id}>
+                          {group.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Category</Label>
+                  <Select
+                    value={formData.category_id || "none"}
+                    onValueChange={(value) => setFormData({ ...formData, category_id: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No Category</SelectItem>
+                      {categories.map((cat) => (
+                        <SelectItem key={cat.id} value={cat.id}>
+                          {cat.category_groups?.name ? `${cat.name} (${cat.category_groups.name})` : cat.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
               <div className="space-y-2">
-                <Label>Category</Label>
+                <Label>Paid By</Label>
                 <Select
-                  value={formData.category_id || "none"}
-                  onValueChange={(value) => setFormData({ ...formData, category_id: value })}
+                  value={formData.paid_by || "none"}
+                  onValueChange={(value) => setFormData({ ...formData, paid_by: value })}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select category" />
+                    <SelectValue placeholder="Select participant" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">No Category</SelectItem>
-                    {categories.map((cat) => (
-                      <SelectItem key={cat.id} value={cat.id}>
-                        {cat.name}
+                    <SelectItem value="none">Myself (Default)</SelectItem>
+                    {participants.map((participant) => (
+                      <SelectItem key={participant.id} value={participant.id}>
+                        {participant.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -298,10 +421,20 @@ export default function Transactions() {
                   <div>
                     <p className="font-medium">
                       {transaction.categories?.name || 'Uncategorized'}
+                      {transaction.categories?.category_groups?.name && (
+                        <span className="text-xs bg-blue-100 dark:bg-blue-900 px-1 rounded ml-2">
+                          {transaction.categories.category_groups.name}
+                        </span>
+                      )}
                     </p>
                     <p className="text-sm text-muted-foreground">
                       {new Date(transaction.transaction_date).toLocaleDateString()}
                     </p>
+                    {transaction.participants?.name && (
+                      <p className="text-xs text-blue-600 dark:text-blue-400">
+                        Paid by: {transaction.participants.name}
+                      </p>
+                    )}
                     {transaction.note && (
                       <p className="text-sm text-muted-foreground">{transaction.note}</p>
                     )}

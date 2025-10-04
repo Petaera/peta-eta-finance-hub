@@ -7,52 +7,109 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, Bell, CheckCircle2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Bell, CheckCircle2, Tag } from 'lucide-react';
 
 interface Reminder {
   id: string;
   title: string;
   amount: number | null;
   due_date: string;
-  is_completed: boolean;
+  category_id: string | null;
+  is_paid: boolean;
+  created_at: string;
+  categories?: {
+    id: string;
+    name: string;
+    type: string;
+  };
+}
+
+interface Category {
+  id: string;
+  name: string;
+  type: string;
 }
 
 export default function Reminders() {
   const { user } = useAuth();
   const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     title: '',
     amount: '',
     due_date: new Date().toISOString().split('T')[0],
+    category_id: 'none',
   });
 
   useEffect(() => {
     if (!user) return;
     fetchReminders();
+    fetchCategories();
   }, [user]);
 
   const fetchReminders = async () => {
-    const { data } = await supabase
-      .from('reminders')
-      .select('*')
-      .eq('user_id', user!.id)
-      .order('due_date', { ascending: true });
+    try {
+      const { data, error } = await supabase
+        .from('reminders')
+        .select(`
+          *,
+          categories(id, name, type)
+        `)
+        .eq('user_id', user!.id)
+        .order('due_date', { ascending: true });
 
-    if (data) setReminders(data);
+      if (error) {
+        console.error('Error fetching reminders:', error);
+        toast.error('Failed to fetch reminders');
+        return;
+      }
+
+      setReminders(data || []);
+    } catch (err) {
+      console.error('Unexpected error:', err);
+      toast.error('Unexpected error occurred');
+    }
+  };
+
+  const fetchCategories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('categories')
+        .select('id, name, type')
+        .eq('user_id', user!.id);
+
+      if (error) {
+        console.error('Error fetching categories:', error);
+        toast.error('Failed to fetch categories');
+        return;
+      }
+
+      setCategories(data || []);
+    } catch (err) {
+      console.error('Unexpected error:', err);
+      toast.error('Unexpected error occurred');
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!formData.title.trim()) {
+      toast.error('Title is required');
+      return;
+    }
+
     const payload = {
       user_id: user!.id,
-      title: formData.title,
+      title: formData.title.trim(),
       amount: formData.amount ? parseFloat(formData.amount) : null,
       due_date: formData.due_date,
-      is_completed: false,
+      category_id: formData.category_id === 'none' ? null : formData.category_id,
+      is_paid: false,
     };
 
     if (editingId) {
@@ -83,7 +140,7 @@ export default function Reminders() {
   const toggleComplete = async (id: string, currentStatus: boolean) => {
     const { error } = await supabase
       .from('reminders')
-      .update({ is_completed: !currentStatus })
+      .update({ is_paid: !currentStatus })
       .eq('id', id);
 
     if (error) {
@@ -111,6 +168,7 @@ export default function Reminders() {
       title: reminder.title,
       amount: reminder.amount?.toString() || '',
       due_date: reminder.due_date,
+      category_id: reminder.category_id || 'none',
     });
     setIsDialogOpen(true);
   };
@@ -120,13 +178,14 @@ export default function Reminders() {
       title: '',
       amount: '',
       due_date: new Date().toISOString().split('T')[0],
+      category_id: 'none',
     });
     setEditingId(null);
     setIsDialogOpen(false);
   };
 
-  const upcomingReminders = reminders.filter((r) => !r.is_completed);
-  const completedReminders = reminders.filter((r) => r.is_completed);
+  const upcomingReminders = reminders.filter((r) => !r.is_paid);
+  const completedReminders = reminders.filter((r) => r.is_paid);
 
   return (
     <div className="space-y-6">
@@ -169,6 +228,28 @@ export default function Reminders() {
               </div>
 
               <div className="space-y-2">
+                <Label>Category (Optional)</Label>
+                <Select
+                  value={formData.category_id || "none"}
+                  onValueChange={(value) => setFormData({ ...formData, category_id: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+
+
+                  <SelectContent>
+                    <SelectItem value="none">No Category</SelectItem>
+                    {categories.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.id}>
+                        {cat.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
                 <Label>Due Date</Label>
                 <Input
                   type="date"
@@ -206,22 +287,28 @@ export default function Reminders() {
                 <CardContent className="flex items-center justify-between p-4">
                   <div className="flex items-center gap-3">
                     <Checkbox
-                      checked={reminder.is_completed}
+                      checked={reminder.is_paid}
                       onCheckedChange={() =>
-                        toggleComplete(reminder.id, reminder.is_completed)
+                        toggleComplete(reminder.id, reminder.is_paid)
                       }
                     />
                     <Bell className="h-5 w-5 text-primary" />
                     <div>
                       <p className="font-medium">{reminder.title}</p>
-                      <p className="text-sm text-muted-foreground">
-                        Due: {new Date(reminder.due_date).toLocaleDateString()}
-                      </p>
+                      <div className="text-sm text-muted-foreground space-y-1">
+                        <p>Due: {new Date(reminder.due_date).toLocaleDateString()}</p>
+                        {reminder.categories && (
+                          <div className="flex items-center gap-1">
+                            <Tag className="h-3 w-3" />
+                            <span>{reminder.categories.name}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
                     {reminder.amount && (
-                      <span className="font-semibold">${reminder.amount.toFixed(2)}</span>
+                      <span className="font-semibold">₹{reminder.amount.toFixed(2)}</span>
                     )}
                     <div className="flex gap-1">
                       <Button variant="ghost" size="icon" onClick={() => handleEdit(reminder)}>
@@ -250,22 +337,28 @@ export default function Reminders() {
                 <CardContent className="flex items-center justify-between p-4">
                   <div className="flex items-center gap-3">
                     <Checkbox
-                      checked={reminder.is_completed}
+                      checked={reminder.is_paid}
                       onCheckedChange={() =>
-                        toggleComplete(reminder.id, reminder.is_completed)
+                        toggleComplete(reminder.id, reminder.is_paid)
                       }
                     />
                     <CheckCircle2 className="h-5 w-5 text-success" />
                     <div>
                       <p className="font-medium line-through">{reminder.title}</p>
-                      <p className="text-sm text-muted-foreground">
-                        Due: {new Date(reminder.due_date).toLocaleDateString()}
-                      </p>
+                      <div className="text-sm text-muted-foreground space-y-1">
+                        <p>Due: {new Date(reminder.due_date).toLocaleDateString()}</p>
+                        {reminder.categories && (
+                          <div className="flex items-center gap-1">
+                            <Tag className="h-3 w-3" />
+                            <span>{reminder.categories.name}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
                     {reminder.amount && (
-                      <span className="font-semibold">${reminder.amount.toFixed(2)}</span>
+                      <span className="font-semibold">₹{reminder.amount.toFixed(2)}</span>
                     )}
                     <Button
                       variant="ghost"

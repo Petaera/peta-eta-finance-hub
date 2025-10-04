@@ -61,7 +61,7 @@ export default function Dashboard() {
         .from('reminders')
         .select('*')
         .eq('user_id', user.id)
-        .eq('is_completed', false)
+        .eq('is_paid', false)
         .gte('due_date', new Date().toISOString())
         .order('due_date', { ascending: true })
         .limit(5);
@@ -91,7 +91,7 @@ export default function Dashboard() {
             <ArrowUpCircle className="h-4 w-4 text-success" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-success">${stats.totalIncome.toFixed(2)}</div>
+            <div className="text-2xl font-bold text-success">₹{stats.totalIncome.toFixed(2)}</div>
           </CardContent>
         </Card>
 
@@ -101,7 +101,7 @@ export default function Dashboard() {
             <ArrowDownCircle className="h-4 w-4 text-destructive" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-destructive">${stats.totalExpense.toFixed(2)}</div>
+            <div className="text-2xl font-bold text-destructive">₹{stats.totalExpense.toFixed(2)}</div>
           </CardContent>
         </Card>
 
@@ -111,7 +111,7 @@ export default function Dashboard() {
             <TrendingUp className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${stats.balance.toFixed(2)}</div>
+            <div className="text-2xl font-bold">₹{stats.balance.toFixed(2)}</div>
           </CardContent>
         </Card>
       </div>
@@ -131,7 +131,7 @@ export default function Dashboard() {
                     cx="50%"
                     cy="50%"
                     labelLine={false}
-                    label={(entry) => `${entry.name}: $${entry.value}`}
+                    label={(entry) => `${entry.name}: ₹${entry.value}`}
                     outerRadius={80}
                     fill="#8884d8"
                     dataKey="value"
@@ -168,7 +168,7 @@ export default function Dashboard() {
                       </p>
                     </div>
                     {reminder.amount && (
-                      <span className="font-semibold">${reminder.amount}</span>
+                      <span className="font-semibold">₹{reminder.amount}</span>
                     )}
                   </div>
                 ))}
