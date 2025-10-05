@@ -213,8 +213,12 @@ export default function Transactions() {
       );
     }
 
-    // Always show latest payments first
-    filtered.sort((a, b) => new Date(b.transaction_date).getTime() - new Date(a.transaction_date).getTime());
+    // Always show latest payments first (by transaction_date, then created_at)
+    filtered.sort((a, b) => {
+      const d = (b.transaction_date || '').localeCompare(a.transaction_date || '');
+      if (d !== 0) return d;
+      return (b.created_at || '').localeCompare(a.created_at || '');
+    });
 
     return filtered;
   };

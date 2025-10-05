@@ -41,9 +41,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background overflow-x-hidden">
       {/* Top header with hamburger, app title, and user info */}
-      <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between bg-card border-b px-4 py-3 lg:left-64 lg:px-8">
+      <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between bg-card border-b px-4 py-3 lg:left-64 lg:px-8 overflow-x-hidden">
         <div className="flex items-center gap-3">
           <Button
             variant="ghost"
@@ -89,8 +89,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
       
       <div className="pt-16 transition-all duration-300 lg:pl-64">
-        <main className="p-4 lg:p-8">
-          <div className="mx-auto max-w-7xl space-y-4 lg:space-y-6">
+        <main className="px-3 py-4 sm:p-4 lg:p-8 overflow-x-hidden">
+          <div className="mx-auto max-w-7xl space-y-4 lg:space-y-6 overflow-x-hidden">
             {children}
           </div>
         </main>
