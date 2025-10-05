@@ -227,59 +227,46 @@ export const friendsService = {
 
 // Groups Service
 export const groupsService = {
-  // Get all groups user belongs to
+  // Get all groups user owns
   async getUserGroups(userId: string): Promise<CategoryGroup[]> {
     const { data, error } = await supabase
-      .from('group_members')
-      .select('group_id, role, created_at')
+      .from('category_groups')
+      .select('id, user_id, name, created_at')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    
-    // Get group details for each group_id
-    const groups = await Promise.all(
-      (data || []).map(async (member) => {
-        const { data: groupData } = await supabase
-          .from('category_groups')
-          .select('id, user_id, name, created_at')
-          .eq('id', member.group_id)
-          .maybeSingle();
-        
-        return groupData;
-      })
-    );
-    
-    return groups.filter(Boolean) as CategoryGroup[];
+    return data || [];
   },
 
-  // Get group members
+  // Get group members (for user-owned groups, return the owner)
   async getGroupMembers(groupId: string): Promise<GroupMember[]> {
-    const { data, error } = await supabase
-      .from('group_members')
-      .select('*')
-      .eq('group_id', groupId)
-      .order('created_at', { ascending: false });
+    // First get the group to find the owner
+    const { data: groupData, error: groupError } = await supabase
+      .from('category_groups')
+      .select('user_id')
+      .eq('id', groupId)
+      .maybeSingle();
 
-    if (error) throw error;
-    
-    // Manually fetch user profiles from profiles table
-    const membersWithProfiles = await Promise.all(
-      (data || []).map(async (member) => {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('id, email, full_name, avatar_url')
-          .eq('id', member.user_id)
-          .maybeSingle();
-        
-        return {
-          ...member,
-          user_profile: profile
-        };
-      })
-    );
-    
-    return membersWithProfiles;
+    if (groupError) throw groupError;
+    if (!groupData) return [];
+
+    // Get the owner's profile
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id, email, full_name, avatar_url')
+      .eq('id', groupData.user_id)
+      .maybeSingle();
+
+    // Return the owner as the only member with admin role
+    return [{
+      id: `owner-${groupId}`,
+      group_id: groupId,
+      user_id: groupData.user_id,
+      role: 'admin' as const,
+      created_at: new Date().toISOString(),
+      user_profile: profile
+    }];
   },
 
   // Add member to group
@@ -329,10 +316,6 @@ export const groupsService = {
       .maybeSingle();
 
     if (error) throw error;
-
-    // Add creator as admin
-    await this.addMemberToGroup(data.id, userId, 'admin');
-
     return data;
   },
 
@@ -423,7 +406,7 @@ export const transactionsService = {
         *,
         categories(id, name, type)
       `)
-      .eq('catogory_group_id', groupId) // Show all transactions in this group
+      .eq('category_group_id', groupId) // Show all transactions in this group
       .order('transaction_date', { ascending: false })
       .limit(10); // Limit to recent 10 transactions
 
@@ -439,7 +422,7 @@ export const transactionsService = {
         *,
         categories(id, name, type)
       `)
-      .eq('catogory_group_id', groupId)
+      .eq('category_group_id', groupId)
       .order('transaction_date', { ascending: false })
       .limit(10);
 

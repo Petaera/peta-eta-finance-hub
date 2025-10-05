@@ -253,7 +253,7 @@ export default function Groups() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {groups.map((group) => {
             const members = groupMembers[group.id] || [];
             const groupParticipants = participants.filter(p => p.group_id === group.id);

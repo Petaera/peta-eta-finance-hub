@@ -110,8 +110,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
       {/* Desktop sidebar */}
       <aside className={cn(
-        'fixed inset-y-0 left-0 w-64 flex flex-col border-r bg-card transition-transform duration-300',
-        isOpen ? 'translate-x-0' : '-translate-x-full'
+        'hidden lg:flex fixed inset-y-0 left-0 w-64 flex-col border-r bg-card z-40'
       )}>
         {sidebarContent}
       </aside>

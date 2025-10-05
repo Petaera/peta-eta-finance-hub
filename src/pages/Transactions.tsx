@@ -21,7 +21,7 @@ interface Transaction {
   note: string | null;
   transaction_date: string;
   category_id: string | null;
-  catogory_group_id: string | null; // Note: matches the typo in your schema
+  category_group_id: string | null;
   paid_by: string | null;
   created_at: string;
   categories?: { 
@@ -108,6 +108,18 @@ export default function Transactions() {
     }
   }, [formData.category_group_id, participants]);
 
+  // Reset category when group changes if selected category doesn't belong to new group
+  useEffect(() => {
+    if (formData.category_group_id && formData.category_id && formData.category_id !== 'none') {
+      const filteredCategories = getFilteredCategories();
+      const isCategoryValid = filteredCategories.some(cat => cat.id === formData.category_id);
+      
+      if (!isCategoryValid) {
+        setFormData(prev => ({ ...prev, category_id: 'none' }));
+      }
+    }
+  }, [formData.category_group_id, categories]);
+
   // Calculate date range based on filter
   const getDateRange = (filter: string) => {
     const today = new Date();
@@ -177,7 +189,7 @@ export default function Transactions() {
     // Group filter
     if (selectedFilters.groupFilter !== 'all') {
       filtered = filtered.filter(transaction => 
-        transaction.catogory_group_id === selectedFilters.groupFilter
+        transaction.category_group_id === selectedFilters.groupFilter
       );
     }
 
@@ -227,7 +239,7 @@ export default function Transactions() {
           *,
           categories(id, name, type)
         `)
-        .or(`user_id.eq.${user!.id}${groupIds.length > 0 ? `,catogory_group_id.in.(${groupIds.join(',')})` : ''}`)
+        .or(`user_id.eq.${user!.id}${groupIds.length > 0 ? `,category_group_id.in.(${groupIds.join(',')})` : ''}`)
         .order('transaction_date', { ascending: false });
 
       if (error) {
@@ -247,7 +259,7 @@ export default function Transactions() {
     try {
       const { data, error } = await supabase
         .from('categories')
-        .select('id, name, type')
+        .select('id, name, type, group_id')
         .eq('user_id', user!.id);
 
       if (error) {
@@ -261,6 +273,17 @@ export default function Transactions() {
       console.error('Unexpected error:', err);
       toast.error('Unexpected error occurred');
     }
+  };
+
+  // Get categories filtered by selected group
+  const getFilteredCategories = () => {
+    if (!formData.category_group_id || formData.category_group_id === 'none') {
+      // If no group selected, show all categories
+      return categories;
+    }
+    
+    // Show only categories that belong to the selected group
+    return categories.filter(category => category.group_id === formData.category_group_id);
   };
 
   const fetchParticipants = async () => {
@@ -350,7 +373,7 @@ export default function Transactions() {
       note: formData.note || null,
       transaction_date: formData.transaction_date,
       category_id: formData.category_id === 'none' ? null : formData.category_id,
-      catogory_group_id: formData.category_group_id === 'none' ? null : formData.category_group_id,
+      category_group_id: formData.category_group_id === 'none' ? null : formData.category_group_id,
     };
 
     // Set paid_by to user ID for Myself, participant ID for others
@@ -419,7 +442,7 @@ export default function Transactions() {
       note: transaction.note || '',
       transaction_date: transaction.transaction_date,
       category_id: transaction.category_id || 'none',
-      category_group_id: transaction.catogory_group_id || 'none',
+      category_group_id: transaction.category_group_id || 'none',
       paid_by: transaction.paid_by === user?.id ? 'user' : transaction.paid_by || 'user',
     });
     setIsDialogOpen(true);
@@ -489,7 +512,7 @@ export default function Transactions() {
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
 
                 <div className="space-y-2">
                   <Label>Category Group</Label>
@@ -522,13 +545,19 @@ export default function Transactions() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">No Category</SelectItem>
-                      {categories.map((cat) => (
+                      {getFilteredCategories().map((cat) => (
                         <SelectItem key={cat.id} value={cat.id}>
                           {cat.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-muted-foreground">
+                    {formData.category_group_id && formData.category_group_id !== 'none' 
+                      ? `Showing categories from ${categoryGroups.find(g => g.id === formData.category_group_id)?.name || 'selected'} group only.`
+                      : 'Showing all your categories.'
+                    }
+                  </p>
                 </div>
               </div>
 
@@ -635,7 +664,7 @@ export default function Transactions() {
         
         {showFilters && (
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {/* Search */}
               <div className="space-y-2">
                 <Label>Search</Label>
@@ -750,7 +779,7 @@ export default function Transactions() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Categories</SelectItem>
-                    {categories.map((category) => (
+                    {getFilteredCategories().map((category) => (
                       <SelectItem key={category.id} value={category.id}>
                         {category.name}
                       </SelectItem>
@@ -788,8 +817,8 @@ export default function Transactions() {
                   <div>
                     <p>
                       <span className="font-medium">{transaction.categories?.name || 'Uncategorized'}</span>
-                      {transaction.catogory_group_id && (() => {
-                        const categoryGroup = categoryGroups.find(g => g.id === transaction.catogory_group_id);
+                      {transaction.category_group_id && (() => {
+                        const categoryGroup = categoryGroups.find(g => g.id === transaction.category_group_id);
                         return categoryGroup && (
                           <span className="text-xs bg-blue-100 dark:bg-blue-900 px-1 rounded ml-2">
                             {categoryGroup.name}

@@ -36,12 +36,25 @@ interface Category {
   category_groups?: CategoryGroup | null;
 }
 
+interface Profile {
+  id: string;
+  email: string | null;
+  full_name: string | null;
+  avatar_url: string | null;
+  default_group_id: string | null;
+  default_category_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export default function Categories() {
   const { user } = useAuth();
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoryGroups, setCategoryGroups] = useState<CategoryGroup[]>([]);
   const [participants, setParticipants] = useState<Participant[]>([]);
+  const [userProfile, setUserProfile] = useState<Profile | null>(null);
   const [activeTab, setActiveTab] = useState<'categories' | 'groups' | 'participants'>('categories');
+  const [selectedGroupFilter, setSelectedGroupFilter] = useState<string>('all');
   
   // Category form states
   const [showCategoryForm, setShowCategoryForm] = useState(false);
@@ -75,7 +88,15 @@ export default function Categories() {
     fetchCategories();
     fetchCategoryGroups();
     fetchParticipants();
+    fetchUserProfile();
   }, [user]);
+
+  // Set default group filter when profile is loaded
+  useEffect(() => {
+    if (userProfile?.default_group_id) {
+      setSelectedGroupFilter(userProfile.default_group_id);
+    }
+  }, [userProfile]);
 
   const fetchCategories = async () => {
     try {
@@ -85,7 +106,7 @@ export default function Categories() {
         .from('categories')
         .select(`
           *,
-          category_groups(id, name, created_at)
+          category_groups!group_id(id, name, created_at)
         `)
         .eq('user_id', user!.id)
         .order('created_at', { ascending: false });
@@ -99,9 +120,7 @@ export default function Categories() {
       // Transform the data to match our interface
       const transformedData = (data || []).map(item => ({
         ...item,
-        category_groups: Array.isArray(item.category_groups) && item.category_groups.length > 0 
-          ? item.category_groups[0] 
-          : null
+        category_groups: item.category_groups || null
       }));
       setCategories(transformedData as Category[]);
     } catch (err) {
@@ -109,6 +128,25 @@ export default function Categories() {
       toast.error('Unexpected error occurred');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchUserProfile = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, email, full_name, avatar_url, default_group_id, default_category_id, created_at, updated_at')
+        .eq('id', user!.id)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Error fetching user profile:', error);
+        return;
+      }
+
+      setUserProfile(data);
+    } catch (err) {
+      console.error('Unexpected error fetching profile:', err);
     }
   };
 
@@ -139,7 +177,7 @@ export default function Categories() {
         .from('participants')
         .select(`
           *,
-          category_groups(id, name)
+          category_groups!group_id(id, name)
         `)
         .order('created_at', { ascending: false });
 
@@ -413,7 +451,20 @@ export default function Categories() {
     setShowParticipantForm(false);
   };
 
-  const groupedCategories = categories.reduce((acc, cat) => {
+  // Filter categories based on selected group
+  const getFilteredCategories = () => {
+    if (selectedGroupFilter === 'all') {
+      return categories;
+    }
+    
+    if (selectedGroupFilter === 'uncategorized') {
+      return categories.filter(cat => !cat.group_id);
+    }
+    
+    return categories.filter(cat => cat.group_id === selectedGroupFilter);
+  };
+
+  const groupedCategories = getFilteredCategories().reduce((acc, cat) => {
     const groupName = cat.category_groups?.name || 'Uncategorized';
     if (!acc[groupName]) acc[groupName] = [];
     acc[groupName].push(cat);
@@ -528,12 +579,46 @@ export default function Categories() {
           {/* Categories List */}
           <div className="space-y-4">
             {!showCategoryForm && (
-              <div className="flex justify-between items-center">
-                <h2 className="text-xl font-semibold">Categories ({categories.length})</h2>
-                <Button onClick={() => setShowCategoryForm(true)}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Category
-                </Button>
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-xl font-semibold">Categories ({getFilteredCategories().length})</h2>
+                  <Button onClick={() => setShowCategoryForm(true)}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Category
+                  </Button>
+                </div>
+                
+                {/* Group Filter */}
+                <div className="flex items-center gap-4">
+                  <Label htmlFor="group-filter" className="text-sm font-medium">Filter by Group:</Label>
+                  <Select value={selectedGroupFilter} onValueChange={setSelectedGroupFilter}>
+                    <SelectTrigger className="w-64">
+                      <SelectValue placeholder="Select group to filter" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Groups</SelectItem>
+                      <SelectItem value="uncategorized">Uncategorized</SelectItem>
+                      {userProfile?.default_group_id && (
+                        <SelectItem value={userProfile.default_group_id}>
+                          {categoryGroups.find(g => g.id === userProfile.default_group_id)?.name || 'Default Group'} (Default)
+                        </SelectItem>
+                      )}
+                      {categoryGroups
+                        .filter(group => group.id !== userProfile?.default_group_id)
+                        .map((group) => (
+                          <SelectItem key={group.id} value={group.id}>
+                            {group.name}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                  {selectedGroupFilter === userProfile?.default_group_id && (
+                    <p className="text-xs text-blue-600 dark:text-blue-400">
+                      Showing categories from your default group
+                    </p>
+                  )}
+                </div>
+                
               </div>
             )}
 
@@ -542,8 +627,22 @@ export default function Categories() {
                 <CardContent className="flex h-40 items-center justify-center text-muted-foreground">
                   <div className="text-center">
                     <FolderOpen className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p>No categories yet</p>
-                    <p className="text-sm">Create your first category above</p>
+                    <p>
+                      {selectedGroupFilter === 'all' 
+                        ? 'No categories yet' 
+                        : selectedGroupFilter === 'uncategorized'
+                        ? 'No uncategorized categories'
+                        : selectedGroupFilter === userProfile?.default_group_id
+                        ? `No categories in your default group (${categoryGroups.find(g => g.id === userProfile?.default_group_id)?.name || 'Default Group'})`
+                        : `No categories in ${categoryGroups.find(g => g.id === selectedGroupFilter)?.name || 'selected group'}`
+                      }
+                    </p>
+                    <p className="text-sm">
+                      {selectedGroupFilter === 'all' 
+                        ? 'Create your first category above' 
+                        : 'Try selecting a different group or create a new category'
+                      }
+                    </p>
                   </div>
                 </CardContent>
               </Card>
@@ -551,7 +650,7 @@ export default function Categories() {
               Object.entries(groupedCategories).map(([groupName, cats]) => (
                 <div key={groupName} className="space-y-3">
                   <h3 className="text-lg font-semibold">{groupName}</h3>
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="grid gap-3 sm:gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                     {cats.map((category) => (
                       <Card key={category.id}>
                         <CardContent className="flex items-center justify-between p-4">
@@ -562,7 +661,14 @@ export default function Categories() {
                               {category.type === 'income' ? '₹' : '-'}
                             </div>
                             <div>
-                              <span className="font-medium">{category.name}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">{category.name}</span>
+                                {category.group_id && (
+                                  <span className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-2 py-0.5 rounded-full">
+                                    {categoryGroups.find(g => g.id === category.group_id)?.name || 'Unknown Group'}
+                                  </span>
+                                )}
+                              </div>
                               <div className="text-xs text-muted-foreground capitalize">
                                 {category.type}
                               </div>

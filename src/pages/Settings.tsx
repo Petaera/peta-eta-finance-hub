@@ -16,6 +16,7 @@ import {
 
 interface Profile {
   id: string;
+  email: string | null;
   full_name: string | null;
   default_group_id: string | null;
   default_category_id: string | null;
@@ -52,13 +53,62 @@ export default function Settings() {
     }
   }, [user]);
 
+  // Update existing profiles with email if missing
+  useEffect(() => {
+    if (user && profile && !profile.email) {
+      updateProfileWithEmail();
+    }
+  }, [user, profile]);
+
+  // Keep form state in sync with profile changes
+  useEffect(() => {
+    if (profile) {
+      console.log('Profile changed, updating form state:', {
+        full_name: profile.full_name,
+        default_group_id: profile.default_group_id,
+        default_category_id: profile.default_category_id
+      });
+      setFullName(profile.full_name || '');
+      setDefaultGroupId(profile.default_group_id || 'none');
+      setDefaultCategoryId(profile.default_category_id || 'none');
+    }
+  }, [profile]);
+
+  // Update existing profiles with email if missing
+  const updateProfileWithEmail = async () => {
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ 
+          email: user!.email,
+          // Preserve existing default values
+          default_group_id: profile?.default_group_id || null,
+          default_category_id: profile?.default_category_id || null
+        })
+        .eq('id', user!.id);
+
+      if (error) {
+        console.error('Error updating profile with email:', error);
+        return;
+      }
+
+      // Update local profile state with email but preserve other values
+      setProfile(prev => prev ? { 
+        ...prev, 
+        email: user!.email 
+      } : null);
+    } catch (err) {
+      console.error('Unexpected error updating profile with email:', err);
+    }
+  };
+
   const fetchProfile = async () => {
     try {
       console.log('Fetching profile for user:', user!.id);
       
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, full_name, default_group_id, default_category_id, created_at, updated_at')
+        .select('id, email, full_name, default_group_id, default_category_id, created_at, updated_at')
         .eq('id', user!.id)
         .single();
 
@@ -70,6 +120,7 @@ export default function Settings() {
           console.log('No profile exists, creating temporary profile state');
           setProfile({
             id: user!.id,
+            email: user!.email,
             full_name: null,
             default_group_id: null,
             default_category_id: null,
@@ -152,6 +203,13 @@ export default function Settings() {
     }
   };
 
+  // Helper function to safely convert string values to null for UUID fields
+  const safeUuidValue = (value: string): string | null => {
+    if (value === 'none' || value === '' || !value || value.trim() === '') {
+      return null;
+    }
+    return value;
+  };
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -161,15 +219,18 @@ export default function Settings() {
 
     try {
       console.log('Updating profile for user:', user.id);
+      console.log('defaultGroupId value:', defaultGroupId, 'type:', typeof defaultGroupId);
+      console.log('defaultCategoryId value:', defaultCategoryId, 'type:', typeof defaultCategoryId);
       
           // Try manual upsert with explicit error handling
           const { error: upsertError } = await supabase
             .from('profiles')
              .upsert({
                id: user.id,
+               email: user.email,
                full_name: fullName.trim() || null,
-               default_group_id: defaultGroupId === 'none' ? null : defaultGroupId,
-               default_category_id: defaultCategoryId === 'none' ? null : defaultCategoryId,
+               default_group_id: safeUuidValue(defaultGroupId),
+               default_category_id: safeUuidValue(defaultCategoryId),
                created_at: profile?.created_at || new Date().toISOString(),
                updated_at: new Date().toISOString(),
              }, {
@@ -185,9 +246,10 @@ export default function Settings() {
           // Update local state
            const updatedProfile = {
              id: user.id,
+             email: user.email,
              full_name: fullName.trim() || null,
-             default_group_id: defaultGroupId === 'none' ? null : defaultGroupId,
-             default_category_id: defaultCategoryId === 'none' ? null : defaultCategoryId,
+             default_group_id: safeUuidValue(defaultGroupId),
+             default_category_id: safeUuidValue(defaultCategoryId),
              created_at: profile?.created_at || new Date().toISOString(),
              updated_at: new Date().toISOString(),
            };
