@@ -9,10 +9,10 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, ArrowUpCircle, ArrowDownCircle, Filter, Calendar, Search, Users } from 'lucide-react';
+import { Plus, Pencil, Trash2, ArrowUpCircle, ArrowDownCircle, Filter, Calendar, Search } from 'lucide-react';
 import { groupsService, friendsService, resolvePayer, getOrCreateProfile } from '@/services/supabase';
-import { PayerDisplay, GroupMemberList } from '@/components/ui/member-components';
-import type { GroupMember, Friend } from '@/services/supabase';
+import { PayerDisplay } from '@/components/ui/member-components';
+import type { Friend } from '@/services/supabase';
 
 interface Transaction {
   id: string;
@@ -56,7 +56,6 @@ export default function Transactions() {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [categoryGroups, setCategoryGroups] = useState<CategoryGroup[]>([]);
   const [userProfile, setUserProfile] = useState<Profile | null>(null);
-  const [groupMembers, setGroupMembers] = useState<Record<string, GroupMember[]>>({});
   const [friends, setFriends] = useState<Friend[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -91,7 +90,6 @@ export default function Transactions() {
     fetchParticipants(); 
     fetchCategoryGroups();
     fetchUserProfile();
-    fetchGroupMembers();
     fetchFriends();
   }, [user]);
 
@@ -326,23 +324,6 @@ export default function Transactions() {
     }
   };
 
-  const fetchGroupMembers = async () => {
-    try {
-      const userGroups = await groupsService.getUserGroups(user!.id);
-      const membersData: Record<string, GroupMember[]> = {};
-      
-      for (const group of userGroups) {
-        const members = await groupsService.getGroupMembers(group.id);
-        membersData[group.id] = members;
-      }
-      
-      setGroupMembers(membersData);
-    } catch (error) {
-      console.error('Error fetching group members:', error);
-      toast.error('Failed to fetch group members');
-    }
-  };
-
   const fetchFriends = async () => {
     try {
       const friendsData = await friendsService.getFriends(user!.id);
@@ -563,14 +544,6 @@ export default function Transactions() {
                     <SelectContent>
                       <SelectItem value="user">Myself (Default)</SelectItem>
                       
-                      {/* Group Members (Real Users) */}
-                      {formData.category_group_id && formData.category_group_id !== 'none' && 
-                        groupMembers[formData.category_group_id]?.map((member) => (
-                          <SelectItem key={member.user_id} value={member.user_id}>
-                            {member.user_profile?.full_name || member.user_profile?.email} (Group Member)
-                          </SelectItem>
-                        ))
-                      }
                       
                       {/* Friends */}
                       {friends.map((friend) => (
@@ -791,35 +764,6 @@ export default function Transactions() {
         )}
       </Card>
 
-      {/* Group Members Section */}
-      {categoryGroups.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Group Members
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {categoryGroups.map((group) => {
-                const members = groupMembers[group.id] || [];
-                const groupParticipants = participants.filter(p => p.group_id === group.id);
-                
-                return (
-                  <div key={group.id} className="space-y-2">
-                    <h4 className="font-medium text-sm">{group.name}</h4>
-                    <GroupMemberList
-                      members={members}
-                      participants={groupParticipants}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       <div className="grid gap-4">
         {getFilteredTransactions().length === 0 ? (
@@ -837,9 +781,9 @@ export default function Transactions() {
               <CardContent className="flex items-center justify-between p-4">
                 <div className="flex items-center gap-3">
                   {transaction.type === 'income' ? (
-                    <ArrowUpCircle className="h-8 w-8 text-success" />
+                    <ArrowUpCircle className="h-8 w-8 text-green-600" />
                   ) : (
-                    <ArrowDownCircle className="h-8 w-8 text-destructive" />
+                    <ArrowDownCircle className="h-8 w-8 text-red-600" />
                   )}
                   <div>
                     <p>
@@ -858,10 +802,9 @@ export default function Transactions() {
                     </p>
                     <div className="text-xs text-blue-600 dark:text-blue-400">
                       <PayerDisplay
-                        paidBy={transaction.paid_by}
-                        userId={user?.id || ''}
-                        participants={participants}
-                        friends={friends}
+                        payerId={transaction.paid_by}
+                        payerInfo={resolvePayer(transaction.paid_by, user?.id || '', participants, friends)}
+                        size="xs"
                       />
                     </div>
                     {transaction.note && (
@@ -872,10 +815,10 @@ export default function Transactions() {
                 <div className="flex items-center gap-3">
                   <span
                     className={`text-xl font-bold ${
-                      transaction.type === 'income' ? 'text-success' : 'text-destructive'
+                      transaction.type === 'income' ? 'text-green-600' : 'text-red-600'
                     }`}
                   >
-                    {transaction.type === 'income' ? '+' : '-'}₹{transaction.amount.toFixed(2)}
+                    ₹{transaction.amount.toFixed(2)}
                   </span>
                   <div className="flex gap-1">
                     <Button

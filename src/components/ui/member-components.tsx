@@ -75,59 +75,47 @@ export function MemberCard({ name, email, avatarUrl, role, isDummy = false, clas
 }
 
 interface PayerDisplayProps {
-  paidBy: string | null;
-  userId: string;
-  participants: Array<{ id: string; name: string; email?: string }>;
-  friends: Array<{ friend_profile?: { id: string; full_name?: string; email?: string; avatar_url?: string } }>;
+  payerId: string | null;
+  payerInfo: { name: string; isUser: boolean; isDummy: boolean; avatar?: string };
+  size?: 'xs' | 'sm' | 'md' | 'lg';
   className?: string;
 }
 
-export function PayerDisplay({ paidBy, userId, participants, friends, className }: PayerDisplayProps) {
-  if (!paidBy) {
+export function PayerDisplay({ payerId, payerInfo, size = 'sm', className }: PayerDisplayProps) {
+  if (!payerId || !payerInfo) {
     return <span className={cn('text-muted-foreground', className)}>Unknown</span>;
   }
 
-  // Check if it's the current user
-  if (paidBy === userId) {
-    return (
-      <div className={cn('flex items-center gap-2', className)}>
-        <UserAvatar name="Myself" size="sm" />
-        <span className="text-sm">Myself</span>
-      </div>
-    );
-  }
+  const sizeClasses = {
+    xs: 'h-4 w-4 text-xs',
+    sm: 'h-6 w-6 text-xs',
+    md: 'h-8 w-8 text-sm',
+    lg: 'h-10 w-10 text-base'
+  };
 
-  // Check if it's a participant (dummy)
-  const participant = participants.find(p => p.id === paidBy);
-  if (participant) {
+  // If it's a dummy participant
+  if (payerInfo.isDummy) {
     return (
-      <div className={cn('flex items-center gap-2', className)}>
-        <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center">
+      <div className={cn('flex items-center gap-1', className)}>
+        <div className={cn('rounded-full bg-muted flex items-center justify-center', sizeClasses[size])}>
           <Users className="h-3 w-3 text-muted-foreground" />
         </div>
-        <span className="text-sm">{participant.name}</span>
+        <span className={cn('text-muted-foreground', size === 'xs' ? 'text-xs' : 'text-sm')}>{payerInfo.name}</span>
       </div>
     );
   }
 
-  // Check if it's a friend (real user)
-  const friend = friends.find(f => f.friend_profile?.id === paidBy);
-  if (friend) {
-    const friendName = friend.friend_profile?.full_name || friend.friend_profile?.email || 'Unknown Friend';
-    return (
-      <div className={cn('flex items-center gap-2', className)}>
-        <UserAvatar 
-          name={friendName} 
-          email={friend.friend_profile?.email}
-          avatarUrl={friend.friend_profile?.avatar_url} 
-          size="sm" 
-        />
-        <span className="text-sm">{friendName}</span>
-      </div>
-    );
-  }
-
-  return <span className={cn('text-muted-foreground', className)}>Unknown</span>;
+  // If it's a real user (including current user)
+  return (
+    <div className={cn('flex items-center gap-1', className)}>
+      <UserAvatar 
+        name={payerInfo.name} 
+        avatarUrl={payerInfo.avatar}
+        size={size === 'xs' ? 'sm' : size} 
+      />
+      <span className={cn('text-muted-foreground', size === 'xs' ? 'text-xs' : 'text-sm')}>{payerInfo.name}</span>
+    </div>
+  );
 }
 
 interface GroupMemberListProps {

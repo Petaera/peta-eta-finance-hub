@@ -121,7 +121,7 @@ export default function Reports() {
             <CardTitle className="text-sm font-medium">Total Income</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-success">₹{totalIncome.toFixed(2)}</div>
+            <div className="text-2xl font-bold text-green-600">₹{totalIncome.toFixed(2)}</div>
           </CardContent>
         </Card>
 
@@ -130,7 +130,7 @@ export default function Reports() {
             <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-destructive">₹{totalExpense.toFixed(2)}</div>
+            <div className="text-2xl font-bold text-red-600">₹{totalExpense.toFixed(2)}</div>
           </CardContent>
         </Card>
 

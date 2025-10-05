@@ -88,20 +88,20 @@ export default function Dashboard() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Total Income</CardTitle>
-            <ArrowUpCircle className="h-4 w-4 text-success" />
+            <ArrowUpCircle className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-success">₹{stats.totalIncome.toFixed(2)}</div>
+            <div className="text-2xl font-bold text-green-600">₹{stats.totalIncome.toFixed(2)}</div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
-            <ArrowDownCircle className="h-4 w-4 text-destructive" />
+            <ArrowDownCircle className="h-4 w-4 text-red-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-destructive">₹{stats.totalExpense.toFixed(2)}</div>
+            <div className="text-2xl font-bold text-red-600">₹{stats.totalExpense.toFixed(2)}</div>
           </CardContent>
         </Card>
 

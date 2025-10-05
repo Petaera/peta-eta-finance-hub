@@ -437,7 +437,7 @@ export default function Groups() {
                               <p className={`text-sm font-medium ${
                                 transaction.type === 'income' ? 'text-green-600' : 'text-red-600'
                               }`}>
-                                {transaction.type === 'income' ? '+' : '-'}${transaction.amount.toFixed(2)}
+                                ₹{transaction.amount.toFixed(2)}
                               </p>
                               <p className="text-xs text-muted-foreground">
                                 {new Date(transaction.transaction_date).toLocaleDateString()}
