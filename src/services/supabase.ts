@@ -239,38 +239,88 @@ export const groupsService = {
     return data || [];
   },
 
-  // Get group members (for user-owned groups, return the owner)
+  // Get group members
   async getGroupMembers(groupId: string): Promise<GroupMember[]> {
-    // First get the group to find the owner
-    const { data: groupData, error: groupError } = await supabase
+    const { data, error } = await supabase
+      .from('group_members')
+      .select('id, group_id, user_id, role, created_at')
+      .eq('group_id', groupId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    // Fetch user profiles for each member
+    const membersWithProfiles = await Promise.all(
+      (data || []).map(async (member) => {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('id, email, full_name, avatar_url')
+          .eq('id', member.user_id)
+          .maybeSingle();
+
+        return {
+          ...member,
+          user_profile: profile
+        } as GroupMember;
+      })
+    );
+
+    // Ensure owner (category_groups.user_id) appears as admin even if no membership row exists
+    const { data: groupRow } = await supabase
       .from('category_groups')
       .select('user_id')
       .eq('id', groupId)
       .maybeSingle();
 
-    if (groupError) throw groupError;
-    if (!groupData) return [];
+    const hasOwner = !!membersWithProfiles.find(m => m.user_id === groupRow?.user_id);
+    if (groupRow?.user_id && !hasOwner) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id, email, full_name, avatar_url')
+        .eq('id', groupRow.user_id)
+        .maybeSingle();
 
-    // Get the owner's profile
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('id, email, full_name, avatar_url')
-      .eq('id', groupData.user_id)
-      .maybeSingle();
+      membersWithProfiles.unshift({
+        id: `owner-${groupId}`,
+        group_id: groupId,
+        user_id: groupRow.user_id,
+        role: 'admin',
+        created_at: new Date().toISOString(),
+        user_profile: profile
+      } as GroupMember);
+    }
 
-    // Return the owner as the only member with admin role
-    return [{
-      id: `owner-${groupId}`,
-      group_id: groupId,
-      user_id: groupData.user_id,
-      role: 'admin' as const,
-      created_at: new Date().toISOString(),
-      user_profile: profile
-    }];
+    return membersWithProfiles;
   },
 
   // Add member to group
   async addMemberToGroup(groupId: string, userId: string, role: 'member' | 'admin' = 'member'): Promise<void> {
+    // Check if membership already exists
+    const { data: existing, error: existingError } = await supabase
+      .from('group_members')
+      .select('id, role')
+      .eq('group_id', groupId)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (existingError && existingError.code !== 'PGRST116') {
+      // Non "no rows" error
+      throw existingError;
+    }
+
+    if (existing) {
+      // Update role if it changed
+      if (existing.role !== role) {
+        const { error: updateError } = await supabase
+          .from('group_members')
+          .update({ role })
+          .eq('id', existing.id);
+        if (updateError) throw updateError;
+      }
+      return;
+    }
+
+    // Insert new membership; ignore duplicate key errors (23505) just in case
     const { error } = await supabase
       .from('group_members')
       .insert({
@@ -279,7 +329,7 @@ export const groupsService = {
         role
       });
 
-    if (error) throw error;
+    if (error && (error as any).code !== '23505') throw error;
   },
 
   // Remove member from group
@@ -316,6 +366,20 @@ export const groupsService = {
       .maybeSingle();
 
     if (error) throw error;
+
+    // Ensure owner is recorded as admin member for consistency
+    if (data?.id) {
+      const { error: memberError } = await supabase
+        .from('group_members')
+        .insert({ group_id: data.id, user_id: userId, role: 'admin' })
+        .select();
+      // Ignore unique violations (23505) if already exists
+      if (memberError && (memberError as any).code !== '23505') {
+        // Non-fatal for group creation, but surface if needed
+        console.warn('Failed to insert owner as member:', memberError);
+      }
+    }
+
     return data;
   },
 

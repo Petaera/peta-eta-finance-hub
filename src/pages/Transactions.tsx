@@ -23,6 +23,7 @@ interface Transaction {
   category_id: string | null;
   category_group_id: string | null;
   paid_by: string | null;
+  payment_method?: 'upi' | 'cash' | 'card';
   created_at: string;
   categories?: { 
     id: string;
@@ -81,6 +82,7 @@ export default function Transactions() {
     category_id: 'none',
     category_group_id: 'none',
     paid_by: 'user',
+    payment_method: 'upi' as 'upi' | 'cash' | 'card',
   });
 
   useEffect(() => {
@@ -374,6 +376,7 @@ export default function Transactions() {
       transaction_date: formData.transaction_date,
       category_id: formData.category_id === 'none' ? null : formData.category_id,
       category_group_id: formData.category_group_id === 'none' ? null : formData.category_group_id,
+      payment_method: formData.payment_method,
     };
 
     // Set paid_by to user ID for Myself, participant ID for others
@@ -444,6 +447,7 @@ export default function Transactions() {
       category_id: transaction.category_id || 'none',
       category_group_id: transaction.category_group_id || 'none',
       paid_by: transaction.paid_by === user?.id ? 'user' : transaction.paid_by || 'user',
+      payment_method: transaction.payment_method || 'upi',
     });
     setIsDialogOpen(true);
   };
@@ -457,6 +461,7 @@ export default function Transactions() {
       category_id: userProfile?.default_category_id || 'none',
       category_group_id: userProfile?.default_group_id || 'none',
       paid_by: 'user',
+      payment_method: 'upi',
     });
     setEditingId(null);
     setIsDialogOpen(false);
@@ -601,6 +606,23 @@ export default function Transactions() {
                       `. Showing members from ${categoryGroups.find(g => g.id === formData.category_group_id)?.name || 'selected'} group.`
                     }
                   </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Payment Method</Label>
+                  <Select
+                    value={formData.payment_method}
+                    onValueChange={(value) => setFormData({ ...formData, payment_method: value as 'upi' | 'cash' | 'card' })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select payment method" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="upi">UPI (Default)</SelectItem>
+                      <SelectItem value="cash">Cash</SelectItem>
+                      <SelectItem value="card">Card</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
               <div className="space-y-2">

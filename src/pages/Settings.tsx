@@ -271,9 +271,7 @@ export default function Settings() {
       if (uploadError) {
         console.error('Upload error details:', {
           error: uploadError,
-          message: uploadError.message,
-          statusCode: uploadError.statusCode,
-          errorCode: uploadError.error
+          message: uploadError.message
         });
         
         // Provide more specific error messages
