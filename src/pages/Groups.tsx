@@ -43,33 +43,36 @@ export default function Groups() {
     try {
       setLoading(true);
       
-      // Fetch user's groups
-      const userGroups = await groupsService.getUserGroups(user.id);
-      setGroups(userGroups);
-
-      // Fetch participants and friends for adding members
-      const [participantsData, friendsData] = await Promise.all([
+      // Fetch user's groups, participants and friends in parallel
+      const [userGroups, participantsData, friendsData] = await Promise.all([
+        groupsService.getUserGroups(user!.id),
         participantsService.getAllParticipants(),
-        friendsService.getFriends(user.id)
+        friendsService.getFriends(user!.id)
       ]);
 
-      // Fetch members and transactions for each group
+      setGroups(userGroups);
+
+      // Fetch members and transactions for each group in parallel
+      const results = await Promise.all(
+        userGroups.map(async (group) => {
+          const groupParticipants = participantsData.filter(p => p.group_id === group.id);
+          const [members, transactions] = await Promise.all([
+            groupsService.getGroupMembers(group.id),
+            transactionsService.getGroupTransactionsWithPayer(group.id, groupParticipants, friendsData, user!.id)
+          ]);
+          return { groupId: group.id, members, transactions };
+        })
+      );
+
       const membersData: Record<string, GroupMember[]> = {};
       const transactionsData: Record<string, any[]> = {};
-      for (const group of userGroups) {
-        const members = await groupsService.getGroupMembers(group.id);
-        membersData[group.id] = members;
-        
-        // Get group participants for this group
-        const groupParticipants = participantsData.filter(p => p.group_id === group.id);
-        
-        // Fetch transactions with payer information
-        const transactions = await transactionsService.getGroupTransactionsWithPayer(group.id, groupParticipants, friendsData, user.id);
-        transactionsData[group.id] = transactions;
+      for (const r of results) {
+        membersData[r.groupId] = r.members;
+        transactionsData[r.groupId] = r.transactions;
       }
+
       setGroupMembers(membersData);
       setGroupTransactions(transactionsData);
-      
       setParticipants(participantsData);
       setFriends(friendsData);
     } catch (error) {
@@ -246,13 +249,9 @@ export default function Groups() {
                   required
                 />
               </div>
-              <div className="flex gap-2">
-                <Button type="submit" className="flex-1">
-                  Create Group
-                </Button>
-                <Button type="button" variant="outline" onClick={() => setShowCreateGroupForm(false)}>
-                  Cancel
-                </Button>
+              <div className="flex gap-2 flex-col sm:flex-row">
+                <Button type="submit" className="flex-1">Create Group</Button>
+                <Button type="button" variant="outline" onClick={() => setShowCreateGroupForm(false)} className="w-full sm:w-auto">Cancel</Button>
               </div>
             </form>
           </DialogContent>
@@ -280,19 +279,19 @@ export default function Groups() {
               <Card key={group.id} className="relative">
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
                       <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
                         <Users className="h-4 w-4 text-primary" />
                       </div>
-                      <div>
-                        <CardTitle className="text-lg">{group.name}</CardTitle>
+                      <div className="min-w-0">
+                        <CardTitle className="text-lg truncate">{group.name}</CardTitle>
                         <p className="text-sm text-muted-foreground">
                           {members.length + groupParticipants.length} members
                         </p>
                       </div>
                     </div>
                     {isAdmin && (
-                      <div className="flex gap-1">
+                      <div className="flex gap-1 flex-wrap justify-end">
                         <Dialog open={showAddMemberForm && selectedGroup === group.id} onOpenChange={(open) => {
                           setShowAddMemberForm(open);
                           if (open) setSelectedGroup(group.id);
@@ -383,13 +382,9 @@ export default function Groups() {
                                 </Select>
                               </div>
 
-                              <div className="flex gap-2">
-                                <Button type="submit" className="flex-1">
-                                  Add Member
-                                </Button>
-                                <Button type="button" variant="outline" onClick={() => setShowAddMemberForm(false)}>
-                                  Cancel
-                                </Button>
+                              <div className="flex gap-2 flex-col sm:flex-row">
+                                <Button type="submit" className="flex-1">Add Member</Button>
+                                <Button type="button" variant="outline" onClick={() => setShowAddMemberForm(false)} className="w-full sm:w-auto">Cancel</Button>
                               </div>
                             </form>
                           </DialogContent>
@@ -399,6 +394,7 @@ export default function Groups() {
                           size="sm"
                           onClick={() => handleDeleteGroup(group.id)}
                           className="text-destructive hover:text-destructive"
+                          title="Delete group"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
