@@ -481,11 +481,11 @@ export default function Transactions() {
               Add Transaction
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="w-[95vw] sm:max-w-lg p-4 max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingId ? 'Edit' : 'Add'} Transaction</DialogTitle>
             </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-3">
               <div className="space-y-2">
                 <Label>Type</Label>
                 <Select
@@ -508,6 +508,8 @@ export default function Transactions() {
                 <Label>Amount (₹)</Label>
                 <Input
                   type="number"
+                  inputMode="decimal"
+                  pattern="[0-9]*"
                   step="0.01"
                   min="0"
                   value={formData.amount}
@@ -517,7 +519,7 @@ export default function Transactions() {
                 />
               </div>
 
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
+              <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 lg:gap-6">
 
                 <div className="space-y-2">
                   <Label>Category Group</Label>
@@ -577,16 +579,11 @@ export default function Transactions() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="user">Myself (Default)</SelectItem>
-                      
-                      
-                      {/* Friends */}
                       {friends.map((friend) => (
                         <SelectItem key={friend.friend_profile?.id} value={friend.friend_profile?.id || ''}>
                           {friend.friend_profile?.full_name || friend.friend_profile?.email} (Friend)
                         </SelectItem>
                       ))}
-                      
-                      {/* Participants (Dummy Users) */}
                       {participants
                         .filter(participant => 
                           !formData.category_group_id || 
@@ -644,11 +641,11 @@ export default function Transactions() {
                 />
               </div>
 
-              <div className="flex gap-2">
-                <Button type="submit" className="flex-1">
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Button type="submit" className="w-full sm:flex-1">
                   {editingId ? 'Update' : 'Create'}
                 </Button>
-                <Button type="button" variant="outline" onClick={resetForm}>
+                <Button type="button" variant="outline" onClick={resetForm} className="w-full sm:w-auto">
                   Cancel
                 </Button>
               </div>
