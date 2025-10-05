@@ -532,7 +532,7 @@ export default function Transactions() {
                   <Label>Category Group</Label>
                   <Select
                     value={formData.category_group_id || "none"}
-                    onValueChange={(value) => setFormData({ ...formData, category_group_id: value })}
+                    onValueChange={(value) => setFormData({ ...formData, category_group_id: value, category_id: 'none', paid_by: 'user' })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select category group" />
@@ -867,7 +867,7 @@ export default function Transactions() {
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-3 shrink-0">
+                <div className="flex gap-2 shrink-0 sm:items-center sm:flex-row flex-col items-end">
                   <span
                     className={`text-xl font-bold ${
                       transaction.type === 'income' ? 'text-green-600' : 'text-red-600'
@@ -875,10 +875,12 @@ export default function Transactions() {
                   >
                     ₹{transaction.amount.toFixed(2)}
                   </span>
-                  <div className="flex gap-1">
+                  <div className="flex gap-2">
                     <Button
                       variant="ghost"
                       size="icon"
+                      className="h-9 w-9"
+                      title="Edit"
                       onClick={() => handleEdit(transaction)}
                     >
                       <Pencil className="h-4 w-4" />
@@ -886,6 +888,8 @@ export default function Transactions() {
                     <Button
                       variant="ghost"
                       size="icon"
+                      className="h-9 w-9"
+                      title="Delete"
                       onClick={() => handleDelete(transaction.id)}
                     >
                       <Trash2 className="h-4 w-4 text-destructive" />
