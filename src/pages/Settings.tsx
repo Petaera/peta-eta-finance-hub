@@ -11,7 +11,9 @@ import {
   Settings as SettingsIcon, 
   User, 
   Mail,
-  FolderOpen
+  FolderOpen,
+  Camera,
+  X
 } from 'lucide-react';
 
 interface Profile {
@@ -20,6 +22,7 @@ interface Profile {
   full_name: string | null;
   default_group_id: string | null;
   default_category_id: string | null;
+  avatar_url: string | null;
   created_at: string;
   updated_at?: string;
 }
@@ -44,6 +47,9 @@ export default function Settings() {
   const [categoryGroups, setCategoryGroups] = useState<CategoryGroup[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(false);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -66,11 +72,13 @@ export default function Settings() {
       console.log('Profile changed, updating form state:', {
         full_name: profile.full_name,
         default_group_id: profile.default_group_id,
-        default_category_id: profile.default_category_id
+        default_category_id: profile.default_category_id,
+        avatar_url: profile.avatar_url
       });
       setFullName(profile.full_name || '');
       setDefaultGroupId(profile.default_group_id || 'none');
       setDefaultCategoryId(profile.default_category_id || 'none');
+      setAvatarPreview(profile.avatar_url);
     }
   }, [profile]);
 
@@ -108,7 +116,7 @@ export default function Settings() {
       
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, email, full_name, default_group_id, default_category_id, created_at, updated_at')
+        .select('id, email, full_name, default_group_id, default_category_id, avatar_url, created_at, updated_at')
         .eq('id', user!.id)
         .single();
 
@@ -124,6 +132,7 @@ export default function Settings() {
             full_name: null,
             default_group_id: null,
             default_category_id: null,
+            avatar_url: null,
             created_at: new Date().toISOString(),
           });
           setFullName('');
@@ -154,6 +163,7 @@ export default function Settings() {
         full_name: null,
         default_group_id: null,
         default_category_id: null,
+        avatar_url: null,
         created_at: new Date().toISOString(),
       });
       setFullName('');
@@ -212,6 +222,134 @@ export default function Settings() {
     return value;
   };
 
+  // Handle avatar file selection
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        toast.error('Please select an image file');
+        return;
+      }
+      
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('Image size must be less than 5MB');
+        return;
+      }
+      
+      setAvatarFile(file);
+      
+      // Create preview URL
+      const previewUrl = URL.createObjectURL(file);
+      setAvatarPreview(previewUrl);
+    }
+  };
+
+  // Upload avatar to Supabase storage
+  const uploadAvatar = async (file: File): Promise<string | null> => {
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user!.id}-${Date.now()}.${fileExt}`;
+      const filePath = `avatars/${fileName}`;
+
+      console.log('Uploading avatar:', {
+        fileName,
+        filePath,
+        fileSize: file.size,
+        fileType: file.type,
+        userId: user!.id
+      });
+
+      const { data, error: uploadError } = await supabase.storage
+        .from('avatar')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      if (uploadError) {
+        console.error('Upload error details:', {
+          error: uploadError,
+          message: uploadError.message,
+          statusCode: uploadError.statusCode,
+          errorCode: uploadError.error
+        });
+        
+        // Provide more specific error messages
+        if (uploadError.message.includes('row-level security policy')) {
+          toast.error('Storage access denied. Please check RLS policies for the avatar bucket.');
+        } else if (uploadError.message.includes('not found')) {
+          toast.error('Avatar storage bucket not found. Please create the "avatar" bucket in Supabase Storage.');
+        } else {
+          toast.error('Failed to upload avatar: ' + uploadError.message);
+        }
+        return null;
+      }
+
+      console.log('Upload successful:', data);
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('avatar')
+        .getPublicUrl(filePath);
+
+      console.log('Public URL generated:', urlData.publicUrl);
+      return urlData.publicUrl;
+    } catch (err) {
+      console.error('Upload error:', err);
+      toast.error('Failed to upload avatar: ' + (err as Error).message);
+      return null;
+    }
+  };
+
+  // Remove avatar
+  const removeAvatar = async () => {
+    if (!profile?.avatar_url) return;
+
+    setUploadingAvatar(true);
+    try {
+      // Extract file path from URL
+      const url = new URL(profile.avatar_url);
+      const pathParts = url.pathname.split('/');
+      const filePath = pathParts.slice(-2).join('/'); // Get 'avatars/filename'
+
+      // Delete from storage
+      const { error: deleteError } = await supabase.storage
+        .from('avatar')
+        .remove([filePath]);
+
+      if (deleteError) {
+        console.error('Delete error:', deleteError);
+        toast.error('Failed to remove avatar from storage');
+        return;
+      }
+
+      // Update profile to remove avatar_url
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ avatar_url: null })
+        .eq('id', user!.id);
+
+      if (updateError) {
+        console.error('Update error:', updateError);
+        toast.error('Failed to update profile');
+        return;
+      }
+
+      // Update local state
+      setProfile(prev => prev ? { ...prev, avatar_url: null } : null);
+      setAvatarPreview(null);
+      setAvatarFile(null);
+      toast.success('Avatar removed successfully');
+    } catch (err) {
+      console.error('Remove avatar error:', err);
+      toast.error('Failed to remove avatar');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -223,6 +361,23 @@ export default function Settings() {
       console.log('defaultGroupId value:', defaultGroupId, 'type:', typeof defaultGroupId);
       console.log('defaultCategoryId value:', defaultCategoryId, 'type:', typeof defaultCategoryId);
       
+      let avatarUrl = profile?.avatar_url || null;
+      
+      // Upload avatar if a new file is selected
+      if (avatarFile) {
+        setUploadingAvatar(true);
+        const uploadedUrl = await uploadAvatar(avatarFile);
+        if (uploadedUrl) {
+          avatarUrl = uploadedUrl;
+          setAvatarFile(null); // Clear the file after successful upload
+        } else {
+          setLoading(false);
+          setUploadingAvatar(false);
+          return; // Stop if avatar upload failed
+        }
+        setUploadingAvatar(false);
+      }
+      
           // Try manual upsert with explicit error handling
           const { error: upsertError } = await supabase
             .from('profiles')
@@ -232,6 +387,7 @@ export default function Settings() {
                full_name: fullName.trim() || null,
                default_group_id: safeUuidValue(defaultGroupId),
                default_category_id: safeUuidValue(defaultCategoryId),
+               avatar_url: avatarUrl,
                created_at: profile?.created_at || new Date().toISOString(),
                updated_at: new Date().toISOString(),
              }, {
@@ -251,11 +407,13 @@ export default function Settings() {
              full_name: fullName.trim() || null,
              default_group_id: safeUuidValue(defaultGroupId),
              default_category_id: safeUuidValue(defaultCategoryId),
+             avatar_url: avatarUrl,
              created_at: profile?.created_at || new Date().toISOString(),
              updated_at: new Date().toISOString(),
            };
       
       setProfile(updatedProfile);
+      setAvatarPreview(avatarUrl);
       toast.success('Profile updated successfully');
       
     } catch (err) {
@@ -285,6 +443,76 @@ export default function Settings() {
           </CardHeader>
            <CardContent>
              <form onSubmit={handleUpdateProfile} className="space-y-6">
+               {/* Avatar Upload */}
+               <div className="space-y-4">
+                 <Label>Profile Photo</Label>
+                 <div className="flex items-center gap-4">
+                   {/* Avatar Display */}
+                   <div className="relative">
+                     {avatarPreview ? (
+                       <div className="relative group">
+                         <img
+                           src={avatarPreview}
+                           alt="Profile"
+                           className="w-20 h-20 rounded-full object-cover border-2 border-gray-200"
+                         />
+                         {profile?.avatar_url && (
+                           <button
+                             type="button"
+                             onClick={removeAvatar}
+                             disabled={uploadingAvatar}
+                             className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                           >
+                             <X className="h-3 w-3" />
+                           </button>
+                         )}
+                       </div>
+                     ) : (
+                       <div className="w-20 h-20 rounded-full bg-gray-100 border-2 border-gray-200 flex items-center justify-center">
+                         <User className="h-8 w-8 text-gray-400" />
+                       </div>
+                     )}
+                   </div>
+                   
+                   {/* Upload Controls */}
+                   <div className="space-y-2">
+                     <input
+                       type="file"
+                       id="avatar"
+                       accept="image/*"
+                       onChange={handleAvatarChange}
+                       className="hidden"
+                     />
+                     <div className="flex gap-2">
+                       <Button
+                         type="button"
+                         variant="outline"
+                         onClick={() => document.getElementById('avatar')?.click()}
+                         disabled={uploadingAvatar}
+                       >
+                         <Camera className="h-4 w-4 mr-2" />
+                         {avatarPreview ? 'Change Photo' : 'Upload Photo'}
+                       </Button>
+                       {profile?.avatar_url && (
+                         <Button
+                           type="button"
+                           variant="outline"
+                           onClick={removeAvatar}
+                           disabled={uploadingAvatar}
+                           className="text-red-600 hover:text-red-700"
+                         >
+                           <X className="h-4 w-4 mr-2" />
+                           Remove
+                         </Button>
+                       )}
+                     </div>
+                     <p className="text-xs text-muted-foreground">
+                       JPG, PNG or GIF. Max size 5MB.
+                     </p>
+                   </div>
+                 </div>
+               </div>
+
                {/* Full Name */}
                <div className="space-y-2">
                  <Label htmlFor="fullName">Full Name</Label>
@@ -296,8 +524,8 @@ export default function Settings() {
                  />
                </div>
 
-               <Button type="submit" disabled={loading}>
-                 {loading ? 'Updating...' : 'Update Profile'}
+               <Button type="submit" disabled={loading || uploadingAvatar}>
+                 {loading || uploadingAvatar ? 'Updating...' : 'Update Profile'}
                </Button>
              </form>
            </CardContent>
