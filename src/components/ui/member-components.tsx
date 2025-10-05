@@ -1,7 +1,8 @@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { User, Users } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { User, Users, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface UserAvatarProps {
@@ -137,25 +138,40 @@ interface GroupMemberListProps {
     group_id?: string;
   }>;
   className?: string;
+  canRemove?: boolean;
+  onRemoveMember?: (userId: string) => void;
 }
 
-export function GroupMemberList({ members, participants, className }: GroupMemberListProps) {
+export function GroupMemberList({ members, participants, className, canRemove = false, onRemoveMember }: GroupMemberListProps) {
   const groupParticipants = participants.filter(p => p.group_id);
 
   return (
     <div className={cn('space-y-2', className)}>
       <h4 className="text-sm font-medium text-muted-foreground mb-2">Group Members</h4>
-      
       {/* Real Users */}
       {members.map((member) => (
-        <MemberCard
-          key={member.id}
-          name={member.user_profile?.full_name || member.user_profile?.email || 'Unknown User'}
-          email={member.user_profile?.email}
-          avatarUrl={member.user_profile?.avatar_url}
-          role={member.role}
-          isDummy={false}
-        />
+        <div key={member.id} className="flex items-center gap-2">
+          <div className="flex-1">
+            <MemberCard
+              name={member.user_profile?.full_name || member.user_profile?.email || 'Unknown User'}
+              email={member.user_profile?.email}
+              avatarUrl={member.user_profile?.avatar_url}
+              role={member.role}
+              isDummy={false}
+            />
+          </div>
+          {canRemove && onRemoveMember && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => onRemoveMember(member.user_id)}
+              aria-label="Remove member"
+            >
+              <Trash2 className="h-4 w-4 text-destructive" />
+            </Button>
+          )}
+        </div>
       ))}
 
       {/* Dummy Participants */}

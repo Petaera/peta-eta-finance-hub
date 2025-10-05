@@ -90,9 +90,26 @@ export default function Groups() {
 
     try {
       const newGroup = await groupsService.createGroup(user!.id, groupFormData.name.trim());
+
+      // Create an owner/admin member locally so controls enable immediately
+      const ownerMember: GroupMember = {
+        id: `owner-${newGroup.id}`,
+        group_id: newGroup.id,
+        user_id: user!.id,
+        role: 'admin',
+        created_at: new Date().toISOString(),
+        user_profile: {
+          id: user!.id,
+          email: user!.email || '',
+          full_name: undefined,
+          avatar_url: undefined,
+        }
+      } as GroupMember;
+
       setGroups(prev => [newGroup, ...prev]);
-      setGroupMembers(prev => ({ ...prev, [newGroup.id]: [] }));
+      setGroupMembers(prev => ({ ...prev, [newGroup.id]: [ownerMember] }));
       setGroupTransactions(prev => ({ ...prev, [newGroup.id]: [] }));
+      setSelectedGroup(newGroup.id);
       setGroupFormData({ name: '' });
       setShowCreateGroupForm(false);
       toast.success('Group created successfully');
@@ -393,6 +410,14 @@ export default function Groups() {
                   <GroupMemberList
                     members={members}
                     participants={groupParticipants}
+                    canRemove={isAdmin}
+                    onRemoveMember={async (memberUserId) => {
+                      try {
+                        await handleRemoveMember(group.id, memberUserId);
+                      } catch (e) {
+                        console.error(e);
+                      }
+                    }}
                   />
                   
                   {/* Recent Transactions */}
