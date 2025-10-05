@@ -146,12 +146,12 @@ export function GroupMemberList({ members, participants, className, canRemove = 
   const groupParticipants = participants.filter(p => p.group_id);
 
   return (
-    <div className={cn('space-y-2', className)}>
+    <div className={cn('space-y-2 overflow-visible', className)}>
       <h4 className="text-sm font-medium text-muted-foreground mb-2">Group Members</h4>
       {/* Real Users */}
       {members.map((member) => (
-        <div key={member.id} className="flex items-center gap-2">
-          <div className="flex-1">
+        <div key={member.id} className="flex items-center gap-2 w-full">
+          <div className="flex-1 min-w-0">
             <MemberCard
               name={member.user_profile?.full_name || member.user_profile?.email || 'Unknown User'}
               email={member.user_profile?.email}
@@ -165,6 +165,7 @@ export function GroupMemberList({ members, participants, className, canRemove = 
               type="button"
               variant="ghost"
               size="icon"
+              className="h-9 w-9"
               onClick={() => onRemoveMember(member.user_id)}
               aria-label="Remove member"
             >

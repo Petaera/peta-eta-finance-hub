@@ -218,7 +218,7 @@ export default function Groups() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 overflow-x-auto">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Groups</h1>
@@ -278,7 +278,7 @@ export default function Groups() {
             return (
               <Card key={group.id} className="relative">
                 <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 w-full">
                     <div className="flex items-center gap-2 min-w-0">
                       <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
                         <Users className="h-4 w-4 text-primary" />
@@ -291,14 +291,14 @@ export default function Groups() {
                       </div>
                     </div>
                     {isAdmin && (
-                      <div className="flex gap-1 flex-wrap justify-end">
+                      <div className="flex gap-2 flex-wrap items-center justify-end w-full sm:w-auto ml-auto">
                         <Dialog open={showAddMemberForm && selectedGroup === group.id} onOpenChange={(open) => {
                           setShowAddMemberForm(open);
                           if (open) setSelectedGroup(group.id);
                           else setSelectedGroup(null);
                         }}>
                           <DialogTrigger asChild>
-                            <Button variant="ghost" size="sm">
+                            <Button variant="ghost" size="icon" className="h-9 w-9">
                               <UserPlus className="h-4 w-4" />
                             </Button>
                           </DialogTrigger>
@@ -391,9 +391,9 @@ export default function Groups() {
                         </Dialog>
                         <Button
                           variant="ghost"
-                          size="sm"
+                          size="icon"
+                          className="h-9 w-9 text-destructive hover:text-destructive"
                           onClick={() => handleDeleteGroup(group.id)}
-                          className="text-destructive hover:text-destructive"
                           title="Delete group"
                         >
                           <Trash2 className="h-4 w-4" />
