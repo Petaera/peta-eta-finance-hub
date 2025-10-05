@@ -213,6 +213,9 @@ export default function Transactions() {
       );
     }
 
+    // Always show latest payments first
+    filtered.sort((a, b) => new Date(b.transaction_date).getTime() - new Date(a.transaction_date).getTime());
+
     return filtered;
   };
 
@@ -468,7 +471,7 @@ export default function Transactions() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 overflow-x-hidden">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Transactions</h1>
@@ -825,16 +828,16 @@ export default function Transactions() {
           </Card>
         ) : (
           getFilteredTransactions().map((transaction) => (
-            <Card key={transaction.id}>
+            <Card key={transaction.id} className="w-full">
               <CardContent className="flex items-center justify-between p-4">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 min-w-0">
                   {transaction.type === 'income' ? (
-                    <ArrowUpCircle className="h-8 w-8 text-green-600" />
+                    <ArrowUpCircle className="h-8 w-8 text-green-600 shrink-0" />
                   ) : (
-                    <ArrowDownCircle className="h-8 w-8 text-red-600" />
+                    <ArrowDownCircle className="h-8 w-8 text-red-600 shrink-0" />
                   )}
-                  <div>
-                    <p>
+                  <div className="min-w-0">
+                    <p className="truncate">
                       <span className="font-medium">{transaction.categories?.name || 'Uncategorized'}</span>
                       {transaction.category_group_id && (() => {
                         const categoryGroup = categoryGroups.find(g => g.id === transaction.category_group_id);
@@ -848,7 +851,7 @@ export default function Transactions() {
                     <p className="text-sm text-muted-foreground">
                       {new Date(transaction.transaction_date).toLocaleDateString('en-GB')}
                     </p>
-                    <div className="text-xs text-blue-600 dark:text-blue-400">
+                    <div className="text-xs text-blue-600 dark:text-blue-400 truncate">
                       <PayerDisplay
                         payerId={transaction.paid_by}
                         payerInfo={resolvePayer(transaction.paid_by, user?.id || '', participants, friends)}
@@ -856,11 +859,11 @@ export default function Transactions() {
                       />
                     </div>
                     {transaction.note && (
-                      <p className="text-sm text-muted-foreground">{transaction.note}</p>
+                      <p className="text-sm text-muted-foreground break-words">{transaction.note}</p>
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 shrink-0">
                   <span
                     className={`text-xl font-bold ${
                       transaction.type === 'income' ? 'text-green-600' : 'text-red-600'
