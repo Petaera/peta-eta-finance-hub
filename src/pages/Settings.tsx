@@ -150,6 +150,7 @@ export default function Settings() {
       // Set default profile data on error
       setProfile({
         id: user!.id,
+        email: user!.email,
         full_name: null,
         default_group_id: null,
         default_category_id: null,
