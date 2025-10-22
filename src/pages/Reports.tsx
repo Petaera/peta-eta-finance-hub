@@ -261,18 +261,18 @@ export default function Reports() {
   const transactionCount = getFilteredTransactions().length;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 px-4 sm:px-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Reports & Analytics</h1>
-          <p className="text-muted-foreground">Comprehensive financial insights and trends</p>
+          <h1 className="text-2xl font-bold sm:text-3xl">Reports & Analytics</h1>
+          <p className="text-muted-foreground text-sm sm:text-base">Comprehensive financial insights and trends</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
           <Button
             variant="outline"
             onClick={() => setShowFilters(!showFilters)}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 w-full sm:w-auto h-11"
           >
             <Filter className="h-4 w-4" />
             Filters
@@ -281,7 +281,7 @@ export default function Reports() {
             variant="outline"
             onClick={fetchData}
             disabled={loading}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 w-full sm:w-auto h-11"
           >
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             Refresh
@@ -298,8 +298,8 @@ export default function Reports() {
               Advanced Filters
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <CardContent className="p-4 sm:p-6">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {/* Period Filter */}
               <div className="space-y-2">
                 <Label>Time Period</Label>
@@ -406,7 +406,7 @@ export default function Reports() {
       )}
 
       {/* Summary Cards */}
-      <div className="grid gap-4 sm:gap-6 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Total Income</CardTitle>
@@ -463,16 +463,16 @@ export default function Reports() {
       </div>
 
       {/* Charts Section */}
-      <Tabs defaultValue="overview" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="trends">Trends</TabsTrigger>
-          <TabsTrigger value="categories">Categories</TabsTrigger>
-          <TabsTrigger value="comparison">Comparison</TabsTrigger>
+      <Tabs defaultValue="overview" className="space-y-4 sm:space-y-6">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto">
+          <TabsTrigger value="overview" className="text-xs sm:text-sm py-2 px-3">Overview</TabsTrigger>
+          <TabsTrigger value="trends" className="text-xs sm:text-sm py-2 px-3">Trends</TabsTrigger>
+          <TabsTrigger value="categories" className="text-xs sm:text-sm py-2 px-3">Categories</TabsTrigger>
+          <TabsTrigger value="comparison" className="text-xs sm:text-sm py-2 px-3">Comparison</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="space-y-6">
-          <div className="grid gap-4 lg:gap-6 lg:grid-cols-2">
+        <TabsContent value="overview" className="space-y-4 sm:space-y-6">
+          <div className="grid gap-4 sm:gap-6 grid-cols-1 lg:grid-cols-2">
             {/* Income vs Expenses Bar Chart */}
             <Card>
               <CardHeader>
@@ -481,16 +481,17 @@ export default function Reports() {
                   Income vs Expenses
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-4 sm:p-6">
                 {incomeExpenseData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={350}>
-                    <BarChart data={incomeExpenseData}>
+                  <ResponsiveContainer width="100%" height={280}>
+                    <BarChart data={incomeExpenseData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="date" />
-                      <YAxis />
+                      <XAxis dataKey="date" fontSize={12} />
+                      <YAxis fontSize={12} />
                       <Tooltip 
                         formatter={(value: any) => [`₹${value.toFixed(2)}`, '']}
                         labelFormatter={(label) => `Date: ${label}`}
+                        contentStyle={{ fontSize: '12px' }}
                       />
                       <Legend />
                       <Bar dataKey="income" fill="#10b981" name="Income" radius={[4, 4, 0, 0]} />
@@ -498,7 +499,7 @@ export default function Reports() {
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="flex h-[350px] items-center justify-center text-muted-foreground">
+                  <div className="flex h-[280px] items-center justify-center text-muted-foreground text-sm">
                     No data for selected period
                   </div>
                 )}
@@ -513,9 +514,9 @@ export default function Reports() {
                   Expenses by Category
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-4 sm:p-6">
                 {categoryData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={350}>
+                  <ResponsiveContainer width="100%" height={280}>
                     <PieChart>
                       <Pie
                         data={categoryData}
@@ -523,7 +524,7 @@ export default function Reports() {
                         cy="50%"
                         labelLine={false}
                         label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                        outerRadius={120}
+                        outerRadius={100}
                         fill="#8884d8"
                         dataKey="value"
                       >
@@ -531,12 +532,15 @@ export default function Reports() {
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Pie>
-                      <Tooltip formatter={(value: any) => [`₹${value.toFixed(2)}`, 'Amount']} />
+                      <Tooltip 
+                        formatter={(value: any) => [`₹${value.toFixed(2)}`, 'Amount']} 
+                        contentStyle={{ fontSize: '12px' }}
+                      />
                       <Legend />
                     </PieChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="flex h-[350px] items-center justify-center text-muted-foreground">
+                  <div className="flex h-[280px] items-center justify-center text-muted-foreground text-sm">
                     No expense data for selected period
                   </div>
                 )}
@@ -545,7 +549,7 @@ export default function Reports() {
           </div>
         </TabsContent>
 
-        <TabsContent value="trends" className="space-y-6">
+        <TabsContent value="trends" className="space-y-4 sm:space-y-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -553,16 +557,17 @@ export default function Reports() {
                 Monthly Trends
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-4 sm:p-6">
               {monthlyTrendData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={400}>
-                  <AreaChart data={monthlyTrendData}>
+                <ResponsiveContainer width="100%" height={320}>
+                  <AreaChart data={monthlyTrendData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="month" />
-                    <YAxis />
+                    <XAxis dataKey="month" fontSize={12} />
+                    <YAxis fontSize={12} />
                     <Tooltip 
                       formatter={(value: any) => [`₹${value.toFixed(2)}`, '']}
                       labelFormatter={(label) => `Month: ${label}`}
+                      contentStyle={{ fontSize: '12px' }}
                     />
                     <Legend />
                     <Area type="monotone" dataKey="income" stackId="1" stroke="#10b981" fill="#10b981" fillOpacity={0.6} name="Income" />
@@ -570,7 +575,7 @@ export default function Reports() {
                   </AreaChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="flex h-[400px] items-center justify-center text-muted-foreground">
+                <div className="flex h-[320px] items-center justify-center text-muted-foreground text-sm">
                   No trend data available
                 </div>
               )}
@@ -578,26 +583,29 @@ export default function Reports() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="categories" className="space-y-6">
-          <div className="grid gap-4 lg:gap-6 lg:grid-cols-2">
+        <TabsContent value="categories" className="space-y-4 sm:space-y-6">
+          <div className="grid gap-4 sm:gap-6 grid-cols-1 lg:grid-cols-2">
             {/* Top Categories Bar Chart */}
             <Card>
               <CardHeader>
                 <CardTitle>Top Expense Categories</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-4 sm:p-6">
                 {categoryData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={350}>
-                    <BarChart data={categoryData.slice(0, 6)} layout="horizontal">
+                  <ResponsiveContainer width="100%" height={280}>
+                    <BarChart data={categoryData.slice(0, 6)} layout="horizontal" margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis type="number" />
-                      <YAxis dataKey="name" type="category" width={100} />
-                      <Tooltip formatter={(value: any) => [`₹${value.toFixed(2)}`, 'Amount']} />
+                      <XAxis type="number" fontSize={12} />
+                      <YAxis dataKey="name" type="category" width={80} fontSize={12} />
+                      <Tooltip 
+                        formatter={(value: any) => [`₹${value.toFixed(2)}`, 'Amount']} 
+                        contentStyle={{ fontSize: '12px' }}
+                      />
                       <Bar dataKey="value" fill="#8884d8" radius={[0, 4, 4, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="flex h-[350px] items-center justify-center text-muted-foreground">
+                  <div className="flex h-[280px] items-center justify-center text-muted-foreground text-sm">
                     No category data available
                   </div>
                 )}
@@ -609,20 +617,20 @@ export default function Reports() {
               <CardHeader>
                 <CardTitle>Category Distribution</CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
+              <CardContent className="p-4 sm:p-6">
+                <div className="space-y-3 sm:space-y-4">
                   {categoryData.map((category, index) => (
                     <div key={index} className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
                         <div 
-                          className="w-4 h-4 rounded-full" 
+                          className="w-3 h-3 sm:w-4 sm:h-4 rounded-full flex-shrink-0" 
                           style={{ backgroundColor: category.color }}
                         />
-                        <span className="font-medium">{category.name}</span>
+                        <span className="font-medium text-sm sm:text-base truncate">{category.name}</span>
                       </div>
-                      <div className="text-right">
-                        <div className="font-semibold">₹{category.value.toFixed(2)}</div>
-                        <div className="text-sm text-muted-foreground">
+                      <div className="text-right flex-shrink-0 ml-2">
+                        <div className="font-semibold text-sm sm:text-base">₹{category.value.toFixed(2)}</div>
+                        <div className="text-xs sm:text-sm text-muted-foreground">
                           {((category.value / totalExpense) * 100).toFixed(1)}%
                         </div>
                       </div>
@@ -634,21 +642,22 @@ export default function Reports() {
           </div>
         </TabsContent>
 
-        <TabsContent value="comparison" className="space-y-6">
+        <TabsContent value="comparison" className="space-y-4 sm:space-y-6">
           <Card>
             <CardHeader>
               <CardTitle>Income vs Expense Comparison</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-4 sm:p-6">
               {incomeExpenseData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={400}>
-                  <LineChart data={incomeExpenseData}>
+                <ResponsiveContainer width="100%" height={320}>
+                  <LineChart data={incomeExpenseData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis />
+                    <XAxis dataKey="date" fontSize={12} />
+                    <YAxis fontSize={12} />
                     <Tooltip 
                       formatter={(value: any) => [`₹${value.toFixed(2)}`, '']}
                       labelFormatter={(label) => `Date: ${label}`}
+                      contentStyle={{ fontSize: '12px' }}
                     />
                     <Legend />
                     <Line type="monotone" dataKey="income" stroke="#10b981" strokeWidth={3} name="Income" />
@@ -656,7 +665,7 @@ export default function Reports() {
                   </LineChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="flex h-[400px] items-center justify-center text-muted-foreground">
+                <div className="flex h-[320px] items-center justify-center text-muted-foreground text-sm">
                   No comparison data available
                 </div>
               )}

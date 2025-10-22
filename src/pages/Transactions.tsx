@@ -37,6 +37,7 @@ interface Participant {
   name: string;
   email: string | null;
   group_id: string | null;
+  created_at: string;
 }
 
 interface CategoryGroup {
@@ -299,7 +300,7 @@ export default function Transactions() {
     try {
       const { data, error } = await supabase
         .from('participants')
-        .select('id, name, email, group_id')
+        .select('id, name, email, group_id, created_at')
         .order('name', { ascending: true });
 
       if (error) {
@@ -308,7 +309,10 @@ export default function Transactions() {
         return;
       }
 
-      setParticipants(data || []);
+      setParticipants((data || []).map(participant => ({
+        ...participant,
+        created_at: participant.created_at || new Date().toISOString()
+      })));
     } catch (err) {
       console.error('Unexpected error:', err);
       toast.error('Unexpected error occurred');
@@ -475,24 +479,24 @@ export default function Transactions() {
   };
 
   return (
-    <div className="space-y-6 overflow-x-hidden">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 sm:space-y-6 overflow-x-hidden px-4 sm:px-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Transactions</h1>
-          <p className="text-muted-foreground">Manage your income and expenses</p>
+          <h1 className="text-2xl font-bold sm:text-3xl">Transactions</h1>
+          <p className="text-muted-foreground text-sm sm:text-base">Manage your income and expenses</p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
-            <Button onClick={() => resetForm()}>
+            <Button onClick={() => resetForm()} className="w-full sm:w-auto h-11">
               <Plus className="mr-2 h-4 w-4" />
               Add Transaction
             </Button>
           </DialogTrigger>
-          <DialogContent className="w-[95vw] sm:max-w-lg p-4 max-h-[85vh] overflow-y-auto">
+          <DialogContent className="w-[95vw] max-w-md mx-auto p-4 max-h-[90vh] overflow-y-auto sm:w-full sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>{editingId ? 'Edit' : 'Add'} Transaction</DialogTitle>
             </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-3">
+            <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label>Type</Label>
                 <Select
@@ -526,7 +530,7 @@ export default function Transactions() {
                 />
               </div>
 
-              <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 lg:gap-6">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6">
 
                 <div className="space-y-2">
                   <Label>Category Group</Label>
@@ -648,11 +652,11 @@ export default function Transactions() {
                 />
               </div>
 
-              <div className="flex flex-col sm:flex-row gap-2">
-                <Button type="submit" className="w-full sm:flex-1">
+              <div className="flex flex-col gap-3 sm:flex-row sm:gap-2">
+                <Button type="submit" className="w-full sm:flex-1 h-11">
                   {editingId ? 'Update' : 'Create'}
                 </Button>
-                <Button type="button" variant="outline" onClick={resetForm} className="w-full sm:w-auto">
+                <Button type="button" variant="outline" onClick={resetForm} className="w-full sm:w-auto h-11">
                   Cancel
                 </Button>
               </div>
@@ -664,16 +668,17 @@ export default function Transactions() {
       {/* Filter Section */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="flex items-center gap-2">
               <Filter className="h-5 w-5" />
               Filters
             </CardTitle>
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row">
               <Button 
                 variant="outline" 
                 size="sm" 
                 onClick={() => setShowFilters(!showFilters)}
+                className="w-full sm:w-auto"
               >
                 {showFilters ? 'Hide Filters' : 'Show Filters'}
               </Button>
@@ -681,6 +686,7 @@ export default function Transactions() {
                 variant="outline" 
                 size="sm" 
                 onClick={clearFilters}
+                className="w-full sm:w-auto"
               >
                 Clear All
               </Button>
@@ -689,8 +695,8 @@ export default function Transactions() {
         </CardHeader>
         
         {showFilters && (
-          <CardContent>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <CardContent className="p-4 sm:p-6">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {/* Search */}
               <div className="space-y-2">
                 <Label>Search</Label>
@@ -823,77 +829,81 @@ export default function Transactions() {
       <div className="grid gap-4">
         {getFilteredTransactions().length === 0 ? (
           <Card>
-            <CardContent className="flex h-40 items-center justify-center text-muted-foreground">
-              {transactions.length === 0 
-                ? "No transactions yet. Add your first transaction above."
-                : "No transactions match your filters. Try adjusting your search criteria."
-              }
+            <CardContent className="flex h-32 sm:h-40 items-center justify-center text-muted-foreground p-4 sm:p-6">
+              <p className="text-center text-sm sm:text-base">
+                {transactions.length === 0 
+                  ? "No transactions yet. Add your first transaction above."
+                  : "No transactions match your filters. Try adjusting your search criteria."
+                }
+              </p>
             </CardContent>
           </Card>
         ) : (
           getFilteredTransactions().map((transaction) => (
             <Card key={transaction.id} className="w-full">
-              <CardContent className="flex items-center justify-between p-4">
-                <div className="flex items-center gap-3 min-w-0">
-                  {transaction.type === 'income' ? (
-                    <ArrowUpCircle className="h-8 w-8 text-green-600 shrink-0" />
-                  ) : (
-                    <ArrowDownCircle className="h-8 w-8 text-red-600 shrink-0" />
-                  )}
-                  <div className="min-w-0">
-                    <p className="truncate">
-                      <span className="font-medium">{transaction.categories?.name || 'Uncategorized'}</span>
-                      {transaction.category_group_id && (() => {
-                        const categoryGroup = categoryGroups.find(g => g.id === transaction.category_group_id);
-                        return categoryGroup && (
-                          <span className="text-xs bg-blue-100 dark:bg-blue-900 px-1 rounded ml-2">
-                            {categoryGroup.name}
-                          </span>
-                        );
-                      })()}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {new Date(transaction.transaction_date).toLocaleDateString('en-GB')}
-                    </p>
-                    <div className="text-xs text-blue-600 dark:text-blue-400 truncate">
-                      <PayerDisplay
-                        payerId={transaction.paid_by}
-                        payerInfo={resolvePayer(transaction.paid_by, user?.id || '', participants, friends)}
-                        size="xs"
-                      />
-                    </div>
-                    {transaction.note && (
-                      <p className="text-sm text-muted-foreground break-words">{transaction.note}</p>
+              <CardContent className="p-4 sm:p-6">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-start gap-3 min-w-0 flex-1">
+                    {transaction.type === 'income' ? (
+                      <ArrowUpCircle className="h-8 w-8 text-green-600 shrink-0 mt-1" />
+                    ) : (
+                      <ArrowDownCircle className="h-8 w-8 text-red-600 shrink-0 mt-1" />
                     )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
+                        <span className="font-medium text-sm sm:text-base">{transaction.categories?.name || 'Uncategorized'}</span>
+                        {transaction.category_group_id && (() => {
+                          const categoryGroup = categoryGroups.find(g => g.id === transaction.category_group_id);
+                          return categoryGroup && (
+                            <span className="text-xs bg-blue-100 dark:bg-blue-900 px-2 py-1 rounded-full inline-block w-fit">
+                              {categoryGroup.name}
+                            </span>
+                          );
+                        })()}
+                      </div>
+                      <p className="text-xs sm:text-sm text-muted-foreground mt-1">
+                        {new Date(transaction.transaction_date).toLocaleDateString('en-GB')}
+                      </p>
+                      <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                        <PayerDisplay
+                          payerId={transaction.paid_by}
+                          payerInfo={resolvePayer(transaction.paid_by, user?.id || '', participants, friends)}
+                          size="xs"
+                        />
+                      </div>
+                      {transaction.note && (
+                        <p className="text-xs sm:text-sm text-muted-foreground break-words mt-2">{transaction.note}</p>
+                      )}
+                    </div>
                   </div>
-                </div>
-                <div className="flex gap-2 shrink-0 sm:items-center sm:flex-row flex-col items-end">
-                  <span
-                    className={`text-xl font-bold ${
-                      transaction.type === 'income' ? 'text-green-600' : 'text-red-600'
-                    }`}
-                  >
-                    ₹{transaction.amount.toFixed(2)}
-                  </span>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-9 w-9"
-                      title="Edit"
-                      onClick={() => handleEdit(transaction)}
+                  <div className="flex items-center justify-between sm:flex-col sm:items-end sm:gap-2 mt-2 sm:mt-0">
+                    <span
+                      className={`text-lg sm:text-xl font-bold ${
+                        transaction.type === 'income' ? 'text-green-600' : 'text-red-600'
+                      }`}
                     >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-9 w-9"
-                      title="Delete"
-                      onClick={() => handleDelete(transaction.id)}
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
+                      ₹{transaction.amount.toFixed(2)}
+                    </span>
+                    <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 sm:h-9 sm:w-9"
+                        title="Edit"
+                        onClick={() => handleEdit(transaction)}
+                      >
+                        <Pencil className="h-3 w-3 sm:h-4 sm:w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 sm:h-9 sm:w-9"
+                        title="Delete"
+                        onClick={() => handleDelete(transaction.id)}
+                      >
+                        <Trash2 className="h-3 w-3 sm:h-4 sm:w-4 text-destructive" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </CardContent>
