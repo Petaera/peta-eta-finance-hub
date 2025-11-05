@@ -23,6 +23,7 @@ import {
   ResponsiveContainer,
   AreaChart,
   Area,
+  LabelList,
 } from 'recharts';
 import { 
   BarChart3, 
@@ -35,7 +36,7 @@ import {
 } from 'lucide-react';
 
 interface FilterState {
-  period: 'week' | 'month' | 'year' | 'custom';
+  period: 'today' | 'yesterday' | 'last7days' | 'last30days' | 'currentmonth' | 'lastmonth' | 'last3months' | 'week' | 'month' | 'year' | 'custom';
   customStartDate: string;
   customEndDate: string;
   categoryGroup: string;
@@ -50,9 +51,10 @@ export default function Reports() {
   const [categoryGroups, setCategoryGroups] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   
   const [filters, setFilters] = useState<FilterState>({
-    period: 'month',
+    period: 'currentmonth',
     customStartDate: '',
     customEndDate: '',
     categoryGroup: 'all',
@@ -65,11 +67,37 @@ export default function Reports() {
   const [categoryData, setCategoryData] = useState<any[]>([]);
   const [monthlyTrendData, setMonthlyTrendData] = useState<any[]>([]);
   const [incomeExpenseData, setIncomeExpenseData] = useState<any[]>([]);
+  const [selectedCategoryName, setSelectedCategoryName] = useState<string | null>(null);
+  const [selectedCategoryTxns, setSelectedCategoryTxns] = useState<any[]>([]);
+  const [categoryTxnLimit, setCategoryTxnLimit] = useState(5);
+  const [isLoadingCategoryTxns, setIsLoadingCategoryTxns] = useState(false);
 
   useEffect(() => {
     if (!user) return;
     fetchData();
   }, [user]);
+  const getCurrentFilteredTransactions = () => {
+    return getFilteredTransactions();
+  };
+
+  const loadCategoryTransactions = (categoryName: string, limit: number) => {
+    setIsLoadingCategoryTxns(true);
+    const base = getCurrentFilteredTransactions();
+    const txns = base
+      .filter((t) => t.type === 'expense' && (t.categories?.name || 'Uncategorized') === categoryName)
+      .sort((a, b) => (b.transaction_date || '').localeCompare(a.transaction_date || ''))
+      .slice(0, limit);
+    setSelectedCategoryTxns(txns);
+    setIsLoadingCategoryTxns(false);
+  };
+
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 640);
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     if (transactions.length > 0) {
@@ -126,33 +154,96 @@ export default function Reports() {
       }
     } else {
       const now = new Date();
-      let startDate = new Date();
-      
-      if (filters.period === 'week') {
-        startDate.setDate(now.getDate() - 7);
-      } else if (filters.period === 'month') {
-        startDate.setMonth(now.getMonth() - 1);
-      } else if (filters.period === 'year') {
-        startDate.setFullYear(now.getFullYear() - 1);
+      const toDateStr = (d: Date) => d.toISOString().split('T')[0];
+
+      let startStr = '';
+      let endStr = '';
+
+      switch (filters.period) {
+        case 'today': {
+          const start = new Date(now);
+          const end = new Date(now);
+          startStr = toDateStr(start);
+          endStr = toDateStr(end);
+          break;
+        }
+        case 'yesterday': {
+          const y = new Date(now);
+          y.setDate(now.getDate() - 1);
+          startStr = toDateStr(y);
+          endStr = toDateStr(y);
+          break;
+        }
+        case 'week':
+        case 'last7days': {
+          const start = new Date(now);
+          start.setDate(now.getDate() - 7);
+          startStr = toDateStr(start);
+          endStr = toDateStr(now);
+          break;
+        }
+        case 'last30days': {
+          const start = new Date(now);
+          start.setDate(now.getDate() - 30);
+          startStr = toDateStr(start);
+          endStr = toDateStr(now);
+          break;
+        }
+        case 'month':
+        case 'currentmonth': {
+          const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+          const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+          startStr = toDateStr(startOfMonth);
+          endStr = toDateStr(endOfMonth);
+          break;
+        }
+        case 'lastmonth': {
+          const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+          const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+          startStr = toDateStr(startOfLastMonth);
+          endStr = toDateStr(endOfLastMonth);
+          break;
+        }
+        case 'last3months': {
+          const startOfLast3Months = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+          const endOfCurrentMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+          startStr = toDateStr(startOfLast3Months);
+          endStr = toDateStr(endOfCurrentMonth);
+          break;
+        }
+        case 'year': {
+          const startOfYear = new Date(now.getFullYear(), 0, 1);
+          const endOfYear = new Date(now.getFullYear(), 11, 31);
+          startStr = toDateStr(startOfYear);
+          endStr = toDateStr(endOfYear);
+          break;
+        }
+        default: {
+          // Fallback to today
+          startStr = toDateStr(now);
+          endStr = toDateStr(now);
+        }
       }
-      
-      filtered = filtered.filter(t => t.transaction_date >= startDate.toISOString());
+
+      if (startStr && endStr) {
+        filtered = filtered.filter(t => t.transaction_date >= startStr && t.transaction_date <= endStr);
+      }
     }
 
-    // Category group filter
-    if (filters.categoryGroup !== 'all') {
-      filtered = filtered.filter(t => t.category_group_id === filters.categoryGroup);
-    }
+  // Category group filter
+  if (filters.categoryGroup !== 'all') {
+    filtered = filtered.filter(t => String(t.category_group_id || '') === String(filters.categoryGroup));
+  }
 
     // Transaction type filter
     if (filters.transactionType !== 'all') {
       filtered = filtered.filter(t => t.type === filters.transactionType);
     }
 
-    // Category filter
-    if (filters.category !== 'all') {
-      filtered = filtered.filter(t => t.category_id === filters.category);
-    }
+  // Category filter
+  if (filters.category !== 'all') {
+    filtered = filtered.filter(t => String(t.category_id || '') === String(filters.category));
+  }
 
     return filtered;
   };
@@ -310,11 +401,15 @@ export default function Reports() {
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="week">Last Week</SelectItem>
-                    <SelectItem value="month">Last Month</SelectItem>
-                    <SelectItem value="year">Last Year</SelectItem>
-                    <SelectItem value="custom">Custom Range</SelectItem>
+                  <SelectContent className="text-base sm:text-sm">
+                    <SelectItem className="py-3 sm:py-2" value="today">Today</SelectItem>
+                    <SelectItem className="py-3 sm:py-2" value="yesterday">Yesterday</SelectItem>
+                    <SelectItem className="py-3 sm:py-2" value="last7days">Last 7 Days</SelectItem>
+                    <SelectItem className="py-3 sm:py-2" value="last30days">Last 30 Days</SelectItem>
+                    <SelectItem className="py-3 sm:py-2" value="currentmonth">Current Month</SelectItem>
+                    <SelectItem className="py-3 sm:py-2" value="lastmonth">Last Month</SelectItem>
+                    <SelectItem className="py-3 sm:py-2" value="last3months">Last 3 Months</SelectItem>
+                    <SelectItem className="py-3 sm:py-2" value="custom">Custom Range</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -351,10 +446,10 @@ export default function Reports() {
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Groups</SelectItem>
+                  <SelectContent className="text-base sm:text-sm">
+                    <SelectItem className="py-3 sm:py-2" value="all">All Groups</SelectItem>
                     {categoryGroups.map((group) => (
-                      <SelectItem key={group.id} value={group.id}>
+                      <SelectItem className="py-3 sm:py-2" key={group.id} value={group.id}>
                         {group.name}
                       </SelectItem>
                     ))}
@@ -372,10 +467,10 @@ export default function Reports() {
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Types</SelectItem>
-                    <SelectItem value="income">Income Only</SelectItem>
-                    <SelectItem value="expense">Expense Only</SelectItem>
+                  <SelectContent className="text-base sm:text-sm">
+                    <SelectItem className="py-3 sm:py-2" value="all">All Types</SelectItem>
+                    <SelectItem className="py-3 sm:py-2" value="income">Income Only</SelectItem>
+                    <SelectItem className="py-3 sm:py-2" value="expense">Expense Only</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -390,10 +485,10 @@ export default function Reports() {
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Categories</SelectItem>
+                  <SelectContent className="text-base sm:text-sm">
+                    <SelectItem className="py-3 sm:py-2" value="all">All Categories</SelectItem>
                     {getFilteredCategories().map((category) => (
-                      <SelectItem key={category.id} value={category.id}>
+                      <SelectItem className="py-3 sm:py-2" key={category.id} value={category.id}>
                         {category.name}
                       </SelectItem>
                     ))}
@@ -483,20 +578,35 @@ export default function Reports() {
               </CardHeader>
               <CardContent className="p-4 sm:p-6">
                 {incomeExpenseData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={280}>
-                    <BarChart data={incomeExpenseData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="date" fontSize={12} />
-                      <YAxis fontSize={12} />
-                      <Tooltip 
-                        formatter={(value: any) => [`₹${value.toFixed(2)}`, '']}
-                        labelFormatter={(label) => `Date: ${label}`}
-                        contentStyle={{ fontSize: '12px' }}
-                      />
-                      <Legend />
-                      <Bar dataKey="income" fill="#10b981" name="Income" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="expense" fill="#ef4444" name="Expenses" radius={[4, 4, 0, 0]} />
-                    </BarChart>
+                  <ResponsiveContainer width="100%" height={isMobile ? 240 : 280}>
+                    {isMobile ? (
+                      <AreaChart data={incomeExpenseData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="date" fontSize={11} interval="preserveStartEnd" tickCount={4} />
+                        <YAxis fontSize={11} tickCount={4} />
+                        <Tooltip 
+                          formatter={(value: any) => [`₹${Number(value).toFixed(2)}`, '']}
+                          labelFormatter={(label) => `Date: ${label}`}
+                          contentStyle={{ fontSize: '12px' }}
+                        />
+                        <Area type="monotone" dataKey="income" stroke="#10b981" fill="#10b981" fillOpacity={0.5} name="Income" />
+                        <Area type="monotone" dataKey="expense" stroke="#ef4444" fill="#ef4444" fillOpacity={0.5} name="Expenses" />
+                      </AreaChart>
+                    ) : (
+                      <BarChart data={incomeExpenseData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="date" fontSize={12} />
+                        <YAxis fontSize={12} />
+                        <Tooltip 
+                          formatter={(value: any) => [`₹${Number(value).toFixed(2)}`, '']}
+                          labelFormatter={(label) => `Date: ${label}`}
+                          contentStyle={{ fontSize: '12px' }}
+                        />
+                        <Legend />
+                        <Bar dataKey="income" fill="#10b981" name="Income" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="expense" fill="#ef4444" name="Expenses" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    )}
                   </ResponsiveContainer>
                 ) : (
                   <div className="flex h-[280px] items-center justify-center text-muted-foreground text-sm">
@@ -516,29 +626,92 @@ export default function Reports() {
               </CardHeader>
               <CardContent className="p-4 sm:p-6">
                 {categoryData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={280}>
+                  <div>
+                    <ResponsiveContainer width="100%" height={isMobile ? 240 : 300}>
                     <PieChart>
                       <Pie
                         data={categoryData}
                         cx="50%"
                         cy="50%"
                         labelLine={false}
-                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                        outerRadius={100}
+                        label={isMobile ? false : ({ percent }) => `${(percent * 100).toFixed(0)}%`}
+                        outerRadius={isMobile ? 90 : 110}
                         fill="#8884d8"
-                        dataKey="value"
+                          dataKey="value"
+                          onClick={(data: any) => {
+                            const name = data?.name || data?.payload?.name;
+                            if (!name || typeof name !== 'string') return;
+                            setSelectedCategoryName(name);
+                            setCategoryTxnLimit(5);
+                            loadCategoryTransactions(name, 5);
+                          }}
                       >
                         {categoryData.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Pie>
                       <Tooltip 
-                        formatter={(value: any) => [`₹${value.toFixed(2)}`, 'Amount']} 
+                        formatter={(value: any, _name: any, props: any) => [
+                          `${props?.payload?.name || 'Category'}: ₹${Number(value).toFixed(2)}`,
+                          ''
+                        ]}
                         contentStyle={{ fontSize: '12px' }}
                       />
-                      <Legend />
+                      <Legend 
+                        layout={isMobile ? 'horizontal' : 'vertical'}
+                        verticalAlign={isMobile ? 'bottom' : 'middle'}
+                        align={isMobile ? 'center' : 'right'}
+                        wrapperStyle={{ fontSize: isMobile ? 11 : 12 }}
+                      />
                     </PieChart>
                   </ResponsiveContainer>
+                    {selectedCategoryName && (
+                      <div className="mt-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <p className="font-medium">Recent in {selectedCategoryName}</p>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => { setSelectedCategoryName(null); setSelectedCategoryTxns([]); }}
+                          >
+                            Clear
+                          </Button>
+                        </div>
+                        {isLoadingCategoryTxns ? (
+                          <div className="text-sm text-muted-foreground">Loading...</div>
+                        ) : selectedCategoryTxns.length === 0 ? (
+                          <div className="text-sm text-muted-foreground">No transactions found.</div>
+                        ) : (
+                          <div className="space-y-2">
+                            {selectedCategoryTxns.map(txn => (
+                              <div key={txn.id} className="flex items-center justify-between rounded-md border p-2">
+                                <div className="min-w-0">
+                                  <p className="text-sm font-medium truncate">₹{txn.amount.toFixed(2)}</p>
+                                  <p className="text-xs text-muted-foreground truncate">{txn.note || 'No note'}</p>
+                                </div>
+                                <div className="text-xs text-muted-foreground ml-3 whitespace-nowrap">
+                                  {new Date(txn.transaction_date).toLocaleDateString()}
+                                </div>
+                              </div>
+                            ))}
+                            <div className="pt-1">
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => {
+                                  const newLimit = categoryTxnLimit + 5;
+                                  setCategoryTxnLimit(newLimit);
+                                  if (selectedCategoryName) loadCategoryTransactions(selectedCategoryName, newLimit);
+                                }}
+                              >
+                                Load more
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 ) : (
                   <div className="flex h-[280px] items-center justify-center text-muted-foreground text-sm">
                     No expense data for selected period
@@ -559,17 +732,17 @@ export default function Reports() {
             </CardHeader>
             <CardContent className="p-4 sm:p-6">
               {monthlyTrendData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={320}>
-                  <AreaChart data={monthlyTrendData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                <ResponsiveContainer width="100%" height={isMobile ? 260 : 320}>
+                  <AreaChart data={monthlyTrendData} margin={{ top: isMobile ? 10 : 20, right: isMobile ? 10 : 30, left: isMobile ? 0 : 20, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="month" fontSize={12} />
-                    <YAxis fontSize={12} />
+                    <XAxis dataKey="month" fontSize={isMobile ? 11 : 12} interval="preserveStartEnd" tickCount={isMobile ? 4 : 8} />
+                    <YAxis fontSize={isMobile ? 11 : 12} tickCount={isMobile ? 4 : 8} />
                     <Tooltip 
-                      formatter={(value: any) => [`₹${value.toFixed(2)}`, '']}
+                      formatter={(value: any) => [`₹${Number(value).toFixed(2)}`, '']}
                       labelFormatter={(label) => `Month: ${label}`}
                       contentStyle={{ fontSize: '12px' }}
                     />
-                    <Legend />
+                    {!isMobile && <Legend />}
                     <Area type="monotone" dataKey="income" stackId="1" stroke="#10b981" fill="#10b981" fillOpacity={0.6} name="Income" />
                     <Area type="monotone" dataKey="expense" stackId="2" stroke="#ef4444" fill="#ef4444" fillOpacity={0.6} name="Expenses" />
                   </AreaChart>
@@ -592,17 +765,32 @@ export default function Reports() {
               </CardHeader>
               <CardContent className="p-4 sm:p-6">
                 {categoryData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={280}>
-                    <BarChart data={categoryData.slice(0, 6)} layout="horizontal" margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis type="number" fontSize={12} />
-                      <YAxis dataKey="name" type="category" width={80} fontSize={12} />
-                      <Tooltip 
-                        formatter={(value: any) => [`₹${value.toFixed(2)}`, 'Amount']} 
-                        contentStyle={{ fontSize: '12px' }}
-                      />
-                      <Bar dataKey="value" fill="#8884d8" radius={[0, 4, 4, 0]} />
-                    </BarChart>
+                  <ResponsiveContainer width="100%" height={isMobile ? 300 : 280}>
+                    {isMobile ? (
+                      <BarChart data={categoryData.slice(0, 6)} layout="vertical" margin={{ top: 10, right: 10, left: 10, bottom: 10 }}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis type="number" hide tickFormatter={(v) => `₹${Number(v).toFixed(0)}`} />
+                        <YAxis dataKey="name" type="category" width={110} fontSize={12} />
+                        <Tooltip 
+                          formatter={(value: any) => [`₹${Number(value).toFixed(2)}`, 'Amount']} 
+                          contentStyle={{ fontSize: '12px' }}
+                        />
+                        <Bar dataKey="value" fill="#8884d8" barSize={18} radius={[0, 4, 4, 0]}>
+                          <LabelList dataKey="value" position="right" formatter={(v: any) => `₹${Number(v).toFixed(0)}`} style={{ fontSize: 11 }} />
+                        </Bar>
+                      </BarChart>
+                    ) : (
+                      <BarChart data={categoryData.slice(0, 6)} layout="horizontal" margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis type="number" fontSize={12} tickFormatter={(v) => `₹${Number(v).toFixed(0)}`} />
+                        <YAxis dataKey="name" type="category" width={100} fontSize={12} />
+                        <Tooltip 
+                          formatter={(value: any) => [`₹${Number(value).toFixed(2)}`, 'Amount']} 
+                          contentStyle={{ fontSize: '12px' }}
+                        />
+                        <Bar dataKey="value" fill="#8884d8" barSize={24} radius={[0, 4, 4, 0]} />
+                      </BarChart>
+                    )}
                   </ResponsiveContainer>
                 ) : (
                   <div className="flex h-[280px] items-center justify-center text-muted-foreground text-sm">
@@ -649,19 +837,19 @@ export default function Reports() {
             </CardHeader>
             <CardContent className="p-4 sm:p-6">
               {incomeExpenseData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={320}>
-                  <LineChart data={incomeExpenseData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                <ResponsiveContainer width="100%" height={isMobile ? 260 : 320}>
+                  <LineChart data={incomeExpenseData} margin={{ top: isMobile ? 10 : 20, right: isMobile ? 10 : 30, left: isMobile ? 0 : 20, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" fontSize={12} />
-                    <YAxis fontSize={12} />
+                    <XAxis dataKey="date" fontSize={isMobile ? 11 : 12} interval="preserveStartEnd" tickCount={isMobile ? 4 : 8} />
+                    <YAxis fontSize={isMobile ? 11 : 12} tickCount={isMobile ? 4 : 8} />
                     <Tooltip 
-                      formatter={(value: any) => [`₹${value.toFixed(2)}`, '']}
+                      formatter={(value: any) => [`₹${Number(value).toFixed(2)}`, '']}
                       labelFormatter={(label) => `Date: ${label}`}
                       contentStyle={{ fontSize: '12px' }}
                     />
-                    <Legend />
-                    <Line type="monotone" dataKey="income" stroke="#10b981" strokeWidth={3} name="Income" />
-                    <Line type="monotone" dataKey="expense" stroke="#ef4444" strokeWidth={3} name="Expenses" />
+                    {!isMobile && <Legend />}
+                    <Line type="monotone" dataKey="income" stroke="#10b981" strokeWidth={isMobile ? 2 : 3} dot={!isMobile} name="Income" />
+                    <Line type="monotone" dataKey="expense" stroke="#ef4444" strokeWidth={isMobile ? 2 : 3} dot={!isMobile} name="Expenses" />
                   </LineChart>
                 </ResponsiveContainer>
               ) : (

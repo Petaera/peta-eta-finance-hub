@@ -236,12 +236,10 @@ export default function Reminders() {
                   <SelectTrigger>
                     <SelectValue placeholder="Select category" />
                   </SelectTrigger>
-
-
-                  <SelectContent>
-                    <SelectItem value="none">No Category</SelectItem>
+                  <SelectContent className="text-base sm:text-sm">
+                    <SelectItem className="py-3 sm:py-2" value="none">No Category</SelectItem>
                     {categories.map((cat) => (
-                      <SelectItem key={cat.id} value={cat.id}>
+                      <SelectItem className="py-3 sm:py-2" key={cat.id} value={cat.id}>
                         {cat.name}
                       </SelectItem>
                     ))}

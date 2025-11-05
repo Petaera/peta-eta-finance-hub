@@ -65,7 +65,7 @@ export default function Transactions() {
   // Filter states
   const [showFilters, setShowFilters] = useState(false);
   const [selectedFilters, setSelectedFilters] = useState({
-    dateFilter: 'all',
+    dateFilter: 'today',
     dateRange: {
       start: '',
       end: ''
@@ -85,6 +85,8 @@ export default function Transactions() {
     paid_by: 'user',
     payment_method: 'upi' as 'upi' | 'cash' | 'card',
   });
+  const [expensesSortOrder, setExpensesSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [transactionsSortOrder, setTransactionsSortOrder] = useState<'date_desc' | 'date_asc' | 'amount_desc' | 'amount_asc'>('date_desc');
 
   useEffect(() => {
     if (!user) return;
@@ -126,34 +128,34 @@ export default function Transactions() {
   // Calculate date range based on filter
   const getDateRange = (filter: string) => {
     const today = new Date();
+    const toDateStr = (d: Date) => d.toISOString().split('T')[0];
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
     const last7Days = new Date(today);
     last7Days.setDate(last7Days.getDate() - 7);
     const last30Days = new Date(today);
     last30Days.setDate(last30Days.getDate() - 30);
+    const startOfCurrentMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const endOfCurrentMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    const startOfLastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    const endOfLastMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+    const startOfLast3Months = new Date(today.getFullYear(), today.getMonth() - 2, 1);
 
     switch (filter) {
       case 'today':
-        return {
-          start: today.toISOString().split('T')[0],
-          end: today.toISOString().split('T')[0]
-        };
+        return { start: toDateStr(today), end: toDateStr(today) };
       case 'yesterday':
-        return {
-          start: yesterday.toISOString().split('T')[0],
-          end: yesterday.toISOString().split('T')[0]
-        };
+        return { start: toDateStr(yesterday), end: toDateStr(yesterday) };
       case 'last7days':
-        return {
-          start: last7Days.toISOString().split('T')[0],
-          end: today.toISOString().split('T')[0]
-        };
+        return { start: toDateStr(last7Days), end: toDateStr(today) };
       case 'last30days':
-        return {
-          start: last30Days.toISOString().split('T')[0],
-          end: today.toISOString().split('T')[0]
-        };
+        return { start: toDateStr(last30Days), end: toDateStr(today) };
+      case 'currentmonth':
+        return { start: toDateStr(startOfCurrentMonth), end: toDateStr(endOfCurrentMonth) };
+      case 'lastmonth':
+        return { start: toDateStr(startOfLastMonth), end: toDateStr(endOfLastMonth) };
+      case 'last3months':
+        return { start: toDateStr(startOfLast3Months), end: toDateStr(endOfCurrentMonth) };
       default:
         return { start: '', end: '' };
     }
@@ -163,8 +165,8 @@ export default function Transactions() {
   const getFilteredTransactions = () => {
     let filtered = [...transactions];
 
-    // Date filter
-    if (selectedFilters.dateFilter !== 'all') {
+  // Date filter
+  if (selectedFilters.dateFilter) {
       if (selectedFilters.dateFilter === 'custom') {
         if (selectedFilters.dateRange.start && selectedFilters.dateRange.end) {
           filtered = filtered.filter(transaction => {
@@ -175,10 +177,12 @@ export default function Transactions() {
         }
       } else {
         const dateRange = getDateRange(selectedFilters.dateFilter);
+      if (dateRange.start && dateRange.end) {
         filtered = filtered.filter(transaction => {
           const transactionDate = transaction.transaction_date;
           return transactionDate >= dateRange.start && transactionDate <= dateRange.end;
         });
+      }
       }
     }
 
@@ -227,7 +231,7 @@ export default function Transactions() {
   // Clear all filters
   const clearFilters = () => {
     setSelectedFilters({
-      dateFilter: 'all',
+      dateFilter: 'today',
       dateRange: { start: '', end: '' },
       categoryFilter: 'all',
       groupFilter: 'all',
@@ -295,6 +299,25 @@ export default function Transactions() {
     // Show only categories that belong to the selected group
     return categories.filter(category => category.group_id === formData.category_group_id);
   };
+
+  // Get categories for Filters section based on selected group filter
+  const getFilterCategoriesForGroup = () => {
+    if (!selectedFilters.groupFilter || selectedFilters.groupFilter === 'all') {
+      return categories;
+    }
+    return categories.filter(category => category.group_id === selectedFilters.groupFilter);
+  };
+
+  // Ensure category filter stays valid when group filter changes
+  useEffect(() => {
+    if (selectedFilters.groupFilter === 'all' || selectedFilters.categoryFilter === 'all') return;
+    const isValid = categories.some(cat => 
+      cat.id === selectedFilters.categoryFilter && cat.group_id === selectedFilters.groupFilter
+    );
+    if (!isValid) {
+      setSelectedFilters(prev => ({ ...prev, categoryFilter: 'all' }));
+    }
+  }, [selectedFilters.groupFilter, selectedFilters.categoryFilter, categories]);
 
   const fetchParticipants = async () => {
     try {
@@ -492,7 +515,7 @@ export default function Transactions() {
               Add Transaction
             </Button>
           </DialogTrigger>
-          <DialogContent className="w-[95vw] max-w-md mx-auto p-4 max-h-[90vh] overflow-y-auto sm:w-full sm:max-w-lg">
+          <DialogContent className="w-[95vw] max-w-md mx-auto p-4 max-h-[90vh] overflow-y-auto overflow-x-hidden sm:w-full sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>{editingId ? 'Edit' : 'Add'} Transaction</DialogTitle>
             </DialogHeader>
@@ -505,7 +528,7 @@ export default function Transactions() {
                     setFormData({ ...formData, type: value as 'income' | 'expense' })
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select type" />
                   </SelectTrigger>
                   <SelectContent>
@@ -538,7 +561,7 @@ export default function Transactions() {
                     value={formData.category_group_id || "none"}
                     onValueChange={(value) => setFormData({ ...formData, category_group_id: value, category_id: 'none', paid_by: 'user' })}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="w-full">
                       <SelectValue placeholder="Select category group" />
                     </SelectTrigger>
                     <SelectContent>
@@ -558,7 +581,7 @@ export default function Transactions() {
                     value={formData.category_id || "none"}
                     onValueChange={(value) => setFormData({ ...formData, category_id: value })}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="w-full">
                       <SelectValue placeholder="Select category" />
                     </SelectTrigger>
                     <SelectContent>
@@ -585,7 +608,7 @@ export default function Transactions() {
                     value={formData.paid_by}
                     onValueChange={(value) => setFormData({ ...formData, paid_by: value })}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="w-full">
                       <SelectValue placeholder="Select payer" />
                     </SelectTrigger>
                     <SelectContent>
@@ -622,7 +645,7 @@ export default function Transactions() {
                     value={formData.payment_method}
                     onValueChange={(value) => setFormData({ ...formData, payment_method: value as 'upi' | 'cash' | 'card' })}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="w-full">
                       <SelectValue placeholder="Select payment method" />
                     </SelectTrigger>
                     <SelectContent>
@@ -711,58 +734,21 @@ export default function Transactions() {
                 </div>
               </div>
 
-              {/* Date Filter */}
-              <div className="space-y-2">
-                <Label>Date Range</Label>
-                <Select
-                  value={selectedFilters.dateFilter}
-                  onValueChange={(value) => setSelectedFilters({ ...selectedFilters, dateFilter: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select date range" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Time</SelectItem>
-                    <SelectItem value="today">Today</SelectItem>
-                    <SelectItem value="yesterday">Yesterday</SelectItem>
-                    <SelectItem value="last7days">Last 7 Days</SelectItem>
-                    <SelectItem value="last30days">Last 30 Days</SelectItem>
-                    <SelectItem value="custom">Custom Range</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Custom Date Range */}
-              {selectedFilters.dateFilter === 'custom' && (
-                <>
-                  <div className="space-y-2">
-                    <Label>Start Date</Label>
-                    <Input
-                      type="date"
-                      value={selectedFilters.dateRange.start}
-                      onChange={(e) => setSelectedFilters({ 
-                        ...selectedFilters, 
-                        dateRange: { ...selectedFilters.dateRange, start: e.target.value }
-                      })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>End Date</Label>
-                    <Input
-                      type="date"
-                      value={selectedFilters.dateRange.end}
-                      onChange={(e) => setSelectedFilters({ 
-                        ...selectedFilters, 
-                        dateRange: { ...selectedFilters.dateRange, end: e.target.value }
-                      })}
-                    />
-                  </div>
-                </>
-              )}
+              
 
               {/* Type Filter */}
               <div className="space-y-2">
-                <Label>Transaction Type</Label>
+                <div className="flex items-center justify-between">
+                  <Label>Transaction Type</Label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSelectedFilters(prev => ({ ...prev, typeFilter: 'all' }))}
+                  >
+                    Reset
+                  </Button>
+                </div>
                 <Select
                   value={selectedFilters.typeFilter}
                   onValueChange={(value) => setSelectedFilters({ ...selectedFilters, typeFilter: value })}
@@ -770,17 +756,27 @@ export default function Transactions() {
                   <SelectTrigger>
                     <SelectValue placeholder="All types" />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Types</SelectItem>
-                    <SelectItem value="income">Income</SelectItem>
-                    <SelectItem value="expense">Expense</SelectItem>
+                  <SelectContent className="text-base sm:text-sm">
+                    <SelectItem className="py-3 sm:py-2" value="all">All Types</SelectItem>
+                    <SelectItem className="py-3 sm:py-2" value="income">Income</SelectItem>
+                    <SelectItem className="py-3 sm:py-2" value="expense">Expense</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               {/* Category Group Filter */}
               <div className="space-y-2">
-                <Label>Category Group</Label>
+                <div className="flex items-center justify-between">
+                  <Label>Category Group</Label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSelectedFilters(prev => ({ ...prev, groupFilter: 'all' }))}
+                  >
+                    Reset
+                  </Button>
+                </div>
                 <Select
                   value={selectedFilters.groupFilter}
                   onValueChange={(value) => setSelectedFilters({ ...selectedFilters, groupFilter: value })}
@@ -788,10 +784,10 @@ export default function Transactions() {
                   <SelectTrigger>
                     <SelectValue placeholder="All groups" />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Groups</SelectItem>
+                  <SelectContent className="text-base sm:text-sm">
+                    <SelectItem className="py-3 sm:py-2" value="all">All Groups</SelectItem>
                     {categoryGroups.map((group) => (
-                      <SelectItem key={group.id} value={group.id}>
+                      <SelectItem className="py-3 sm:py-2" key={group.id} value={group.id}>
                     {group.name}
                       </SelectItem>
                     ))}
@@ -801,7 +797,17 @@ export default function Transactions() {
 
               {/* Category Filter */}
               <div className="space-y-2">
-                <Label>Category</Label>
+                <div className="flex items-center justify-between">
+                  <Label>Category</Label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSelectedFilters(prev => ({ ...prev, categoryFilter: 'all' }))}
+                  >
+                    Reset
+                  </Button>
+                </div>
                 <Select
                   value={selectedFilters.categoryFilter}
                   onValueChange={(value) => setSelectedFilters({ ...selectedFilters, categoryFilter: value })}
@@ -809,10 +815,10 @@ export default function Transactions() {
                   <SelectTrigger>
                     <SelectValue placeholder="All categories" />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Categories</SelectItem>
-                    {getFilteredCategories().map((category) => (
-                      <SelectItem key={category.id} value={category.id}>
+                  <SelectContent className="text-base sm:text-sm">
+                    <SelectItem className="py-3 sm:py-2" value="all">All Categories</SelectItem>
+                    {getFilterCategoriesForGroup().map((category) => (
+                      <SelectItem className="py-3 sm:py-2" key={category.id} value={category.id}>
                         {category.name}
                       </SelectItem>
                     ))}
@@ -826,20 +832,140 @@ export default function Transactions() {
       </Card>
 
 
+      {/* Date Range (always visible) */}
+      <Card>
+        <CardContent className="p-4 sm:p-6">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>Date Range</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedFilters(prev => ({ ...prev, dateFilter: 'today', dateRange: { start: '', end: '' } }))}
+                >
+                  Reset
+                </Button>
+              </div>
+              <Select
+                value={selectedFilters.dateFilter}
+                onValueChange={(value) => setSelectedFilters({ ...selectedFilters, dateFilter: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select date range" />
+                </SelectTrigger>
+                <SelectContent className="text-base sm:text-sm">
+                  <SelectItem className="py-3 sm:py-2" value="today">Today</SelectItem>
+                  <SelectItem className="py-3 sm:py-2" value="yesterday">Yesterday</SelectItem>
+                  <SelectItem className="py-3 sm:py-2" value="last7days">Last 7 Days</SelectItem>
+                  <SelectItem className="py-3 sm:py-2" value="last30days">Last 30 Days</SelectItem>
+                  <SelectItem className="py-3 sm:py-2" value="currentmonth">Current Month</SelectItem>
+                  <SelectItem className="py-3 sm:py-2" value="lastmonth">Last Month</SelectItem>
+                  <SelectItem className="py-3 sm:py-2" value="last3months">Last 3 Months</SelectItem>
+                  <SelectItem className="py-3 sm:py-2" value="custom">Custom Range</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {selectedFilters.dateFilter === 'custom' && (
+              <>
+                <div className="space-y-2">
+                  <Label>Start Date</Label>
+                  <Input
+                    type="date"
+                    value={selectedFilters.dateRange.start}
+                    onChange={(e) => setSelectedFilters({ 
+                      ...selectedFilters, 
+                      dateRange: { ...selectedFilters.dateRange, start: e.target.value }
+                    })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>End Date</Label>
+                  <Input
+                    type="date"
+                    value={selectedFilters.dateRange.end}
+                    onChange={(e) => setSelectedFilters({ 
+                      ...selectedFilters, 
+                      dateRange: { ...selectedFilters.dateRange, end: e.target.value }
+                    })}
+                  />
+                </div>
+              </>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Sort (always visible) */}
+      <Card>
+        <CardContent className="p-4 sm:p-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="text-base sm:text-lg font-semibold">Sort Transactions</h2>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <Label className="text-sm">Sort Order</Label>
+              <Select value={transactionsSortOrder} onValueChange={(v) => setTransactionsSortOrder(v as any)}>
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <SelectValue placeholder="Choose order" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="date_desc">Date: Descending (Latest first)</SelectItem>
+                  <SelectItem value="date_asc">Date: Ascending (Oldest first)</SelectItem>
+                  <SelectItem value="amount_desc">Amount: High to Low</SelectItem>
+                  <SelectItem value="amount_asc">Amount: Low to High</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Count */}
+      <div className="px-4 sm:px-6">
+        <p className="text-sm text-muted-foreground">{getFilteredTransactions().length} transactions</p>
+      </div>
+
+
       <div className="grid gap-4">
-        {getFilteredTransactions().length === 0 ? (
-          <Card>
-            <CardContent className="flex h-32 sm:h-40 items-center justify-center text-muted-foreground p-4 sm:p-6">
-              <p className="text-center text-sm sm:text-base">
-                {transactions.length === 0 
-                  ? "No transactions yet. Add your first transaction above."
-                  : "No transactions match your filters. Try adjusting your search criteria."
-                }
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          getFilteredTransactions().map((transaction) => (
+        {(() => {
+          const base = [...getFilteredTransactions()];
+          const sorted = (() => {
+            switch (transactionsSortOrder) {
+              case 'amount_asc':
+                return base.sort((a, b) => a.amount - b.amount);
+              case 'amount_desc':
+                return base.sort((a, b) => b.amount - a.amount);
+              case 'date_asc':
+                return base.sort((a, b) => {
+                  const d = (a.transaction_date || '').localeCompare(b.transaction_date || '');
+                  if (d !== 0) return d;
+                  return (a.created_at || '').localeCompare(b.created_at || '');
+                });
+              case 'date_desc':
+              default:
+                return base.sort((a, b) => {
+                  const d = (b.transaction_date || '').localeCompare(a.transaction_date || '');
+                  if (d !== 0) return d;
+                  return (b.created_at || '').localeCompare(a.created_at || '');
+                });
+            }
+          })();
+          if (sorted.length === 0) {
+            return (
+              <Card>
+                <CardContent className="flex h-32 sm:h-40 items-center justify-center text-muted-foreground p-4 sm:p-6">
+                  <p className="text-center text-sm sm:text-base">
+                    {transactions.length === 0 
+                      ? "No transactions yet. Add your first transaction above."
+                      : "No transactions match your filters. Try adjusting your search criteria."
+                    }
+                  </p>
+                </CardContent>
+              </Card>
+            );
+          }
+          return sorted.map((transaction) => (
             <Card key={transaction.id} className="w-full">
               <CardContent className="p-4 sm:p-6">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -908,9 +1034,11 @@ export default function Transactions() {
                 </div>
               </CardContent>
             </Card>
-          ))
-        )}
+          ));
+        })()}
       </div>
+
+      {/* Removed expenses-only section; list above now supports sorting */}
     </div>
   );
 }
